@@ -222,6 +222,10 @@ flowchart TD
 
 ## 10) Rumus Utama (Dipakai di Implementasi Kode)
 
+Jika tampilan rumus LaTeX tidak ter-render di GitHub rich display, gunakan fallback gambar berikut:
+
+![Rumus utama fallback](assets/rumus_utama_fallback.png)
+
 ### a) Model referensi orde-2 (`models/reference_model.py`)
 \[
 \dot{x}_m = A_m x_m + B_m r,\quad
