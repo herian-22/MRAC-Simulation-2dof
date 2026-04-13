@@ -46,6 +46,7 @@ installer_output/
 *.log
 *.csv
 *.png
+!assets/rumus_utama_fallback.png
 *.pdf
 mrac_results/
 .ipynb_checkpoints/
