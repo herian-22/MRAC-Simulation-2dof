@@ -145,6 +145,139 @@ Repository ini menyediakan implementasi numerik ekuivalen berbasis **Python (Num
 
 ---
 
+## 7) Flowchart Proses Simulasi (Sesuai Kode)
+
+```mermaid
+flowchart TD
+    A[Mulai: run_simulation(config)] --> B[Inisialisasi dynamics plant/controller, reference model, trajectory generator]
+    B --> C[Definisikan state gabungan x = q,dq,xm1,xm2,phi1,phi2,alpha]
+    C --> D[solve_ivp memanggil system_ode(t,x)]
+    D --> E[Hitung q_d dari trajectory_generator]
+    E --> F[Update model referensi: dxm1, dxm2]
+    F --> G[Update filter sensitivitas: dphi1, dphi2]
+    G --> H[Hitung error: e = q - qm]
+    H --> I[Adaptasi MIT Rule: dalpha]
+    I --> J[Hitung torque kontrol: tau = tau_m + tau_a]
+    J --> K[Clip torque -500 sampai 500]
+    K --> L[Plant forward dynamics: ddq]
+    L --> M[Kembalikan dx ke solver]
+    M --> N{Waktu selesai?}
+    N -- belum --> D
+    N -- ya --> O[Post-process: q_ref, error, tau, end-effector, friction, metrics]
+    O --> P[SimResult]
+```
+
+---
+
+## 8) Logika Sistem per Tahap
+
+1. **Trajectory layer**  
+   `trajectory_generator()` menghasilkan \(q_d,\dot q_d,\ddot q_d\) berdasarkan mode `step/sinusoidal/multipoint`.
+
+2. **Reference model layer**  
+   Untuk tiap joint, `ReferenceModel.state_derivative()` mengupdate state \(x_m=[q_m,\dot q_m]\) dari input \(r=q_d\).
+
+3. **Adaptive sensitivity layer**  
+   State filter \(\phi\) diupdate dari input \(q_i/\omega_n^2\), lalu sensitivitas yang dipakai adaptasi adalah \(\dot\phi_i\) (`phi_i[1]`).
+
+4. **Error and adaptation layer**  
+   Error utama: \(e=q-q_m\).  
+   Parameter adaptif \(\alpha\) diupdate online dengan MIT Rule.
+
+5. **Control synthesis layer**  
+   Kontrol total = computed torque nominal (\(\tau_m\)) + kompensasi adaptif friksi (\(\tau_a\)).
+
+6. **Plant propagation layer**  
+   Plant dihitung dengan `forward_dynamics()` memakai model plant (termasuk friksi), menghasilkan \(\ddot q\), lalu solver mengintegrasikan state.
+
+7. **Monitoring layer**  
+   Setelah integrasi selesai, sistem menghitung metrik performa (SSE, overshoot, settling time, RMS, ISE, max torque, peak error).
+
+---
+
+## 9) Algoritma Inti (Pseudo-algoritmik dari `run_simulation`)
+
+1. Inisialisasi objek `Dynamics2DoF`, `ReferenceModel`, `MRACController`, trajectory function, dan FK.  
+2. Bentuk state awal nol: \(x_0=[q,dq,xm1,xm2,\phi1,\phi2,\alpha]\).  
+3. Jalankan `solve_ivp(system_ode, ...)`.  
+4. Pada setiap evaluasi `system_ode(t,x)`:
+   - unpack \(x\),
+   - set `controller.alpha = alpha`,
+   - hitung \(q_d\), set \(r=q_d\),
+   - hitung \(dxm_1, dxm_2\),
+   - hitung \(d\phi_1, d\phi_2\),
+   - hitung \(q_m,\dot q_m,e\),
+   - hitung \(d\alpha\) via `adaptation_law(e, dphi_val)`,
+   - hitung \(\tau\) via `compute_full_torque(...)`,
+   - clip \(\tau\) ke \([-500,500]\),
+   - hitung \(\ddot q\) via `plant_dynamics.forward_dynamics(...)`,
+   - pack turunan state dan kembalikan ke solver.
+5. Setelah solver selesai, bentuk semua sinyal output (`q`, `dq`, `q_ref`, `error`, `tau`, `alpha_adapt`, `end_effector`, `friction_torque`).
+6. Hitung metrik dengan `compute_metrics(...)`.
+7. Kembalikan `SimResult`.
+
+---
+
+## 10) Rumus Utama (Dipakai di Implementasi Kode)
+
+### a) Model referensi orde-2 (`models/reference_model.py`)
+\[
+\dot{x}_m = A_m x_m + B_m r,\quad
+A_m=\begin{bmatrix}0&1\\-\omega_n^2&-2\zeta\omega_n\end{bmatrix},\;
+B_m=\begin{bmatrix}0\\\omega_n^2\end{bmatrix}
+\]
+
+Komponen percepatan referensi yang dipakai kontrol (`compute_full_torque`):
+\[
+\ddot q_{m,i}=\omega_n^2\,u_{ref,i}-2\zeta\omega_n\,\dot q_{m,i}-\omega_n^2\,q_{m,i}
+\]
+
+### b) Hukum adaptasi MIT (`control/controller.py`)
+Dengan \(e=q-q_m\):
+\[
+\dot\alpha_i=-\gamma_i\,e_i\,\dot\phi_i
+\]
+
+### c) Hukum kontrol total (`control/controller.py`)
+Error kontrol terhadap model referensi:
+\[
+e_q=q_m-q,\qquad e_{\dot q}=\dot q_m-\dot q
+\]
+
+Sinyal bantu:
+\[
+v=\ddot q_m+K_v e_{\dot q}+K_p e_q
+\]
+
+Komponen torsi:
+\[
+\tau_m=M(q)\,v+C(q,\dot q)\dot q+G(q),\qquad
+\tau_a=\begin{bmatrix}\alpha_1\dot q_1\\\alpha_2\dot q_2\end{bmatrix}
+\]
+
+Torsi total:
+\[
+\tau=\tau_m+\tau_a,\quad \tau\leftarrow\mathrm{clip}(\tau,-500,500)
+\]
+
+### d) Dinamika plant (`models/dynamics.py`)
+\[
+\ddot q = M_{true}^{-1}\left(\tau - C_{true}\dot q - G_{true} - \tau_f\right),\qquad
+\tau_f = f_v \odot \dot q
+\]
+
+### e) Rumus metrik (`simulation/simulator.py`)
+\[
+\text{SSE}_i=\text{mean}\left(|e_i|\right)_{\text{10\% waktu terakhir}},\quad
+\text{RMS}_i=\sqrt{\text{mean}(e_i^2)},\quad
+\text{ISE}_i=\sum e_i^2\,\Delta t
+\]
+\[
+\text{Overshoot}_i(\%)=\max\left(0,\frac{\max(q_i)-q_{d,i}^{final}}{q_{d,i}^{final}}\right)\times 100
+\]
+
+---
+
 ## Menjalankan Proyek
 
 ```bash
