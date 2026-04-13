@@ -25,7 +25,7 @@ Ringkasan metrik (konfigurasi default):
 
 ## 1) Sistem yang Dimodelkan
 
-### antena sebagai manipulator serial 2-DOF
+### Antena sebagai manipulator serial 2-DOF
 - **Joint 1 (q1)**: azimuth (rotasi horizontal)
 - **Joint 2 (q2)**: elevation/slope (rotasi vertikal)
 
@@ -53,7 +53,7 @@ M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 - Simulasi tunggal dan batch (`run_simulation`, `run_batch`).
 - Pembatasan torsi aktuator (torque clipping) untuk menjaga realistis numerik.
 
-### Strategi kontrol
+### Strategi Kontrol
 - **Computed Torque** untuk kompensasi nonlinier plant.
 - **MRAC berbasis MIT Rule** untuk update parameter adaptif online.
 - Tracking terhadap **model referensi orde-2** (bukan hanya setpoint statis).
@@ -63,7 +63,7 @@ M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 - `sinusoidal`
 - `multipoint` (interpolasi spline)
 
-### Analitik dan metrik
+### Analitik dan Metrik
 - SSE, peak error, overshoot, settling time 2%, RMS, ISE, max torque.
 - Logging sinyal penting: \(q\), \(\dot q\), \(q_m\), error, \(\tau\), parameter adaptif, end-effector, torsi friksi.
 
