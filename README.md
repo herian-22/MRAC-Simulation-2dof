@@ -222,68 +222,47 @@ flowchart TD
 
 ## 10) Rumus Utama (Dipakai di Implementasi Kode)
 
-Jika tampilan rumus LaTeX tidak ter-render di GitHub rich display, gunakan fallback gambar berikut:
-
-![Rumus utama fallback](assets/rumus_utama_fallback.png)
-
 ### a) Model referensi orde-2 (`models/reference_model.py`)
-\[
-\dot{x}_m = A_m x_m + B_m r,\quad
-A_m=\begin{bmatrix}0&1\\-\omega_n^2&-2\zeta\omega_n\end{bmatrix},\;
-B_m=\begin{bmatrix}0\\\omega_n^2\end{bmatrix}
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?%5Cdot%7Bx%7D_m%20%3D%20A_m%20x_m%20%2B%20B_m%20r%2C%5Cquad%20A_m%3D%5Cbegin%7Bbmatrix%7D0%261%5C%5C-%5Comega_n%5E2%26-2%5Czeta%5Comega_n%5Cend%7Bbmatrix%7D%2C%5C%3B%20B_m%3D%5Cbegin%7Bbmatrix%7D0%5C%5C%5Comega_n%5E2%5Cend%7Bbmatrix%7D" />
 
 Komponen percepatan referensi yang dipakai kontrol (`compute_full_torque`):
-\[
-u_{ref} \equiv r
-\]
-\[
-\ddot q_{m,i}=\omega_n^2\,u_{ref,i}-2\zeta\omega_n\,\dot q_{m,i}-\omega_n^2\,q_{m,i}
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?u_%7Bref%7D%20%5Cequiv%20r" />
+
+<img src="https://latex.codecogs.com/svg.latex?%5Cddot%7Bq%7D_%7Bm%2Ci%7D%3D%5Comega_n%5E2%5C%2Cu_%7Bref%2Ci%7D-2%5Czeta%5Comega_n%5C%2C%5Cdot%7Bq%7D_%7Bm%2Ci%7D-%5Comega_n%5E2%5C%2Cq_%7Bm%2Ci%7D" />
 
 ### b) Hukum adaptasi MIT (`control/controller.py`)
-Dengan \(e=q-q_m\):
-\[
-\dot\alpha_i=-\gamma_i\,e_i\,\dot\phi_i
-\]
+Dengan <img src="https://latex.codecogs.com/svg.latex?e%3Dq-q_m" />:
+
+<img src="https://latex.codecogs.com/svg.latex?%5Cdot%7B%5Calpha%7D_i%3D-%5Cgamma_i%5C%2Ce_i%5C%2C%5Cdot%7B%5Cphi%7D_i" />
 
 ### c) Hukum kontrol total (`control/controller.py`)
 Error kontrol terhadap model referensi:
-\[
-e_q=q_m-q,\qquad e_{\dot q}=\dot q_m-\dot q
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?e_q%3Dq_m-q%2C%5Cqquad%20e_%7B%5Cdot%7Bq%7D%7D%3D%5Cdot%7Bq%7D_m-%5Cdot%7Bq%7D" />
 
 Sinyal bantu:
-\[
-v=\ddot q_m+K_v e_{\dot q}+K_p e_q
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?v%3D%5Cddot%7Bq%7D_m%2BK_v%20e_%7B%5Cdot%7Bq%7D%7D%2BK_p%20e_q" />
 
 Komponen torsi:
-\[
-\tau_m=M(q)\,v+C(q,\dot q)\dot q+G(q),\qquad
-\tau_a=\begin{bmatrix}\alpha_1\dot q_1\\\alpha_2\dot q_2\end{bmatrix}
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?%5Ctau_m%3DM%28q%29%5C%2Cv%2BC%28q%2C%5Cdot%7Bq%7D%29%5Cdot%7Bq%7D%2BG%28q%29%2C%5Cqquad%20%5Ctau_a%3D%5Cbegin%7Bbmatrix%7D%5Calpha_1%5Cdot%7Bq%7D_1%5C%5C%5Calpha_2%5Cdot%7Bq%7D_2%5Cend%7Bbmatrix%7D" />
 
 Torsi total:
-\[
-\tau=\tau_m+\tau_a,\quad \tau\leftarrow\mathrm{clip}(\tau,-500,500)
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?%5Ctau%3D%5Ctau_m%2B%5Ctau_a%2C%5Cquad%20%5Ctau%5Cleftarrow%5Cmathrm%7Bclip%7D%28%5Ctau%2C-500%2C500%29" />
 
 ### d) Dinamika plant (`models/dynamics.py`)
-\[
-\ddot q = M_{true}^{-1}\left(\tau - C_{true}\dot q - G_{true} - \tau_f\right),\qquad
-\tau_f = f_v \odot \dot q
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?%5Cddot%7Bq%7D%3DM_%7Btrue%7D%5E%7B-1%7D%5Cleft%28%5Ctau-C_%7Btrue%7D%5Cdot%7Bq%7D-G_%7Btrue%7D-%5Ctau_f%5Cright%29%2C%5Cqquad%20%5Ctau_f%3Df_v%5Codot%5Cdot%7Bq%7D" />
 
 ### e) Rumus metrik (`simulation/simulator.py`)
-\[
-\text{SSE}_i=\text{mean}\left(|e_i|\right)_{\text{10\% waktu terakhir}},\quad
-\text{RMS}_i=\sqrt{\text{mean}(e_i^2)},\quad
-\text{ISE}_i=\sum e_i^2\,\Delta t
-\]
-\[
-\text{Overshoot}_i(\%)=\max\left(0,\frac{\max(q_i)-q_{d,i}^{final}}{q_{d,i}^{final}}\right)\times 100
-\]
+
+<img src="https://latex.codecogs.com/svg.latex?%5Ctext%7BSSE%7D_i%3D%5Ctext%7Bmean%7D%5Cleft%28%7Ce_i%7C%5Cright%29_%7B%5Ctext%7B10%5C%25%5C%20waktu%5C%20terakhir%7D%7D%2C%5Cquad%5Ctext%7BRMS%7D_i%3D%5Csqrt%7B%5Ctext%7Bmean%7D%28e_i%5E2%29%7D%2C%5Cquad%5Ctext%7BISE%7D_i%3D%5Csum%20e_i%5E2%5C%2C%5CDelta%20t" />
+
+<img src="https://latex.codecogs.com/svg.latex?%5Ctext%7BOvershoot%7D_i%28%5C%25%29%3D%5Cmax%5C%21%5Cleft%280%2C%5Cfrac%7B%5Cmax%28q_i%29-q_%7Bd%2Ci%7D%5E%7Bfinal%7D%7D%7Bq_%7Bd%2Ci%7D%5E%7Bfinal%7D%7D%5Cright%29%5Ctimes%20100" />
 
 ---
 
