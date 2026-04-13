@@ -49,11 +49,11 @@ class Theme:
     BLOCK_SCOPE_BORDER = "#76e3ea"
 
     # Matplotlib colors
-    MPL_BG = "#0d1117"
-    MPL_AXES = "#161b22"
-    MPL_GRID = "#21262d"
-    MPL_TEXT = "#c9d1d9"
-    MPL_TICK = "#8b949e"
+    MPL_BG = "#ffffff"
+    MPL_AXES = "#ffffff"
+    MPL_GRID = "#e6e6e6"
+    MPL_TEXT = "#111111"
+    MPL_TICK = "#333333"
 
 
 def build_stylesheet() -> str:

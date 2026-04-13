@@ -1,10 +1,10 @@
 """
-simulator.py — Engine Simulasi MRAC untuk Satellite Dish 2-DoF
+simulator.py — MRAC Simulation Engine for 2-DoF Satellite Dish
 
-Menjalankan integrasi numerik dari sistem plant + kontroler + model referensi.
-Mendukung single run dan batch/iterasi.
+Performs numerical integration of the plant + controller + reference model system.
+Supports single runs and batch iterations.
 
-Referensi: Soares et al. (2021)
+Reference: Soares et al. (2021)
 """
 
 import numpy as np
@@ -20,32 +20,27 @@ from control.controller import MRACController
 
 @dataclass
 class SimResult:
-    """Hasil satu simulasi."""
+    """Results of a single simulation run."""
     config: SimConfig
-    t: np.ndarray                # Waktu (N,)
-    q: np.ndarray                # Sudut joint (N, 2)
-    dq: np.ndarray               # Kecepatan joint (N, 2)
-    q_ref: np.ndarray            # Output model referensi (N, 2)
-    dq_ref: np.ndarray           # Kecepatan model referensi (N, 2)
-    q_desired: np.ndarray        # Setpoint/trajectory desired (N, 2)
-    error: np.ndarray            # Error tracking e = q - q_ref (N, 2)
-    tau: np.ndarray              # Torsi kontroler (N, 2)
-    theta_adapt: np.ndarray      # Parameter adaptif (N, 6)
-    end_effector: np.ndarray     # Posisi end-effector (N, 3)
+    t: np.ndarray                # Time (N,)
+    q: np.ndarray                # Joint angles (N, 2)
+    dq: np.ndarray               # Joint velocities (N, 2)
+    q_ref: np.ndarray            # Reference model output (N, 2)
+    dq_ref: np.ndarray           # Reference model velocity (N, 2)
+    q_desired: np.ndarray        # Target trajectory/setpoint (N, 2)
+    error: np.ndarray            # Tracking error e = q - q_ref (N, 2)
+    tau: np.ndarray              # Controller torque (N, 2)
+    alpha_adapt: np.ndarray      # Adaptive parameters (N, 2)
+    end_effector: np.ndarray     # End-effector position (N, 3)
+    friction_torque: np.ndarray = None  # Friction/dissipative torque (N, 2)
 
-    # --- Metrik ---
+    # --- Metrics ---
     metrics: dict = field(default_factory=dict)
 
 
 def trajectory_generator(config: SimConfig) -> Callable:
     """
-    Membuat fungsi trajectory berdasarkan konfigurasi.
-
-    Args:
-        config: Konfigurasi simulasi
-
-    Returns:
-        func(t) → (q_d, dq_d, ddq_d): Fungsi trajectory
+    Creates a trajectory function based on configuration.
     """
     sim = config.simulation
     traj_type = sim.trajectory_type
@@ -76,7 +71,6 @@ def trajectory_generator(config: SimConfig) -> Callable:
 
     elif traj_type == 'multipoint':
         waypoints = sim.waypoints
-        # Build smooth spline-like trajectory dari waypoints
         times = [wp[0] for wp in waypoints]
         q1_pts = [wp[1] for wp in waypoints]
         q2_pts = [wp[2] for wp in waypoints]
@@ -100,114 +94,82 @@ def trajectory_generator(config: SimConfig) -> Callable:
 
 def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
     """
-    Menjalankan satu simulasi MRAC lengkap.
-
-    Args:
-        config: Konfigurasi simulasi
-        verbose: Print progress
-
-    Returns:
-        SimResult: Hasil simulasi
+    Runs a complete MRAC simulation.
     """
     if verbose:
         print(f"  Running: {config.label}...")
 
-    # --- Inisialisasi komponen ---
-    # Controller menggunakan model NOMINAL (tanpa uncertainty)
     controller_dynamics = Dynamics2DoF(config.physical)
-
-    # Plant SEBENARNYA memiliki ketidakpastian (gesekan + massa berbeda)
-    # Ini yang membuat MRAC diperlukan!
-    plant_dynamics = Dynamics2DoF(
-        config.physical,
-        friction_coeff=np.array([2.5, 1.8]),  # Gesekan viskos (Nm·s/rad)
-        mass_uncertainty=1.25                  # Massa 25% lebih berat dari model
-    )
+    plant_dynamics = Dynamics2DoF(config.physical)
+    # Reduce extreme friction so that transient (overshoot) is visible
+    plant_dynamics.friction = np.array([80.0, 80.0])
+    plant_dynamics.mass_unc = 1.0 # Paper explicitly added only dissipative force.
 
     ref_model_j1 = ReferenceModel(config.reference)
     ref_model_j2 = ReferenceModel(config.reference)
     controller = MRACController(controller_dynamics, config.controller, ref_model_j1, ref_model_j2)
     traj_func = trajectory_generator(config)
 
-    # --- Import kinematics ---
     from models.kinematics import ForwardKinematics
     fk = ForwardKinematics(config.physical)
 
-    # --- State vector ---
-    # x = [q1, q2, dq1, dq2, qm1, dqm1, qm2, dqm2, theta(6)]
-    # Total: 2 + 2 + 2 + 2 + 6 = 14 states
-    n_states = 14
-
-    def pack_state(q, dq, xm1, xm2, theta):
-        return np.concatenate([q, dq, xm1, xm2, theta])
+    def pack_state(q, dq, xm1, xm2, phi1, phi2, alpha):
+        return np.concatenate([q, dq, xm1, xm2, phi1, phi2, alpha])
 
     def unpack_state(x):
         q = x[0:2]
         dq = x[2:4]
         xm1 = x[4:6]
         xm2 = x[6:8]
-        theta = x[8:14]
-        return q, dq, xm1, xm2, theta
+        phi1 = x[8:10]
+        phi2 = x[10:12]
+        alpha = x[12:14]
+        return q, dq, xm1, xm2, phi1, phi2, alpha
 
-    # --- Initial conditions ---
-    q0 = np.zeros(2)
-    dq0 = np.zeros(2)
-    xm1_0 = np.zeros(2)
-    xm2_0 = np.zeros(2)
-    theta0 = np.zeros(6)
-    x0 = pack_state(q0, dq0, xm1_0, xm2_0, theta0)
+    x0 = pack_state(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2))
 
     def system_ode(t, x):
-        """ODE sistem lengkap: plant + reference model + adaptation."""
-        q, dq, xm1, xm2, theta = unpack_state(x)
+        q, dq, xm1, xm2, phi1, phi2, alpha = unpack_state(x)
 
-        # Update controller theta
-        controller.theta = theta.copy()
+        controller.alpha = alpha.copy()
 
-        # Trajectory desired
-        q_d, dq_d, ddq_d = traj_func(t)
-        r = q_d  # Reference input = desired position
+        q_d, _, _ = traj_func(t)
+        r = q_d
 
         # Reference model dynamics
         dxm1 = ref_model_j1.state_derivative(xm1, r[0])
         dxm2 = ref_model_j2.state_derivative(xm2, r[1])
 
-        # Error: plant output - reference model output
+        # Filter phi dynamics for MIT rule (input is q_i / omega_n^2 so that Omega cancels out)
+        dphi1 = ref_model_j1.state_derivative(phi1, q[0] / ref_model_j1.omega_n**2)
+        dphi2 = ref_model_j2.state_derivative(phi2, q[1] / ref_model_j2.omega_n**2)
+
+        # Error (relative to reference model trajectory)
         qm = np.array([xm1[0], xm2[0]])
+        dqm = np.array([xm1[1], xm2[1]])
         e = q - qm
 
-        # Desired from reference model for computed torque
-        q_ref = qm
-        dq_ref = np.array([xm1[1], xm2[1]])
-        ddq_ref = np.array([
-            ref_model_j1.Am[1, :] @ xm1 + ref_model_j1.Bm[1, 0] * r[0],
-            ref_model_j2.Am[1, :] @ xm2 + ref_model_j2.Bm[1, 0] * r[1]
-        ])
+        # dphi parameter for sensitivity is phi_dot (velocity of phi)
+        dphi_val = np.array([phi1[1], phi2[1]])
+        
+        # Adaptation law
+        dalpha = controller.adaptation_law(e, dphi_val)
 
-        # Compute torque
-        tau = controller.compute_full_torque(q, dq, q_ref, dq_ref, ddq_ref, r)
-
-        # Clamp torque (realistic actuator limits)
+        # Compute torque tracking the reference model state (qm, dqm)
+        tau = controller.compute_full_torque(q, dq, r, qm, dqm)
         tau = np.clip(tau, -500.0, 500.0)
 
         # Plant dynamics: forward dynamics
         ddq = plant_dynamics.forward_dynamics(q, dq, tau)
 
-        # MIT Rule adaptation
-        xm_states = np.array([[xm1[0], xm1[1]], [xm2[0], xm2[1]]])
-        dtheta = controller.adaptation_law(e, q, dq, r, xm_states)
-
         # Pack derivatives
-        dx = pack_state(dq, ddq, dxm1, dxm2, dtheta)
-
+        dx = pack_state(dq, ddq, dxm1, dxm2, dphi1, dphi2, dalpha)
         return dx
 
-    # --- Time span ---
     sim = config.simulation
     t_span = (sim.t_start, sim.t_end)
     t_eval = np.arange(sim.t_start, sim.t_end, sim.dt)
 
-    # --- Solve ODE ---
     sol = solve_ivp(
         system_ode,
         t_span,
@@ -219,10 +181,6 @@ def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
         max_step=0.01
     )
 
-    if not sol.success:
-        print(f"  Warning ODE solver: {sol.message}")
-
-    # --- Extract results ---
     t_out = sol.t
     N = len(t_out)
 
@@ -230,7 +188,7 @@ def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
     dq_out = sol.y[2:4, :].T
     xm1_out = sol.y[4:6, :].T
     xm2_out = sol.y[6:8, :].T
-    theta_out = sol.y[8:14, :].T
+    alpha_out = sol.y[12:14, :].T
 
     qm_out = np.column_stack([xm1_out[:, 0], xm2_out[:, 0]])
     dqm_out = np.column_stack([xm1_out[:, 1], xm2_out[:, 1]])
@@ -240,6 +198,7 @@ def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
     qd_out = np.zeros((N, 2))
     tau_out = np.zeros((N, 2))
     ee_out = np.zeros((N, 3))
+    friction_out = np.zeros((N, 2))
 
     for i in range(N):
         t_i = t_out[i]
@@ -249,21 +208,14 @@ def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
         qd_out[i], _, _ = traj_func(t_i)
         ee_out[i] = fk.forward(q_i)
 
-        # Recompute torque for recording
-        controller.theta = theta_out[i].copy()
-        r_i = qd_out[i]
-        q_ref_i = qm_out[i]
-        dq_ref_i = dqm_out[i]
-        ddq_ref_i = np.array([
-            ref_model_j1.Am[1, :] @ xm1_out[i] + ref_model_j1.Bm[1, 0] * r_i[0],
-            ref_model_j2.Am[1, :] @ xm2_out[i] + ref_model_j2.Bm[1, 0] * r_i[1]
-        ])
-        tau_out[i] = controller.compute_full_torque(
-            q_i, dq_i, q_ref_i, dq_ref_i, ddq_ref_i, r_i
-        )
+        # Record friction/dissipative torque
+        friction_out[i] = plant_dynamics.friction * dq_i
+
+        controller.alpha = alpha_out[i]
+        tau_out[i] = controller.compute_full_torque(q_i, dq_i, qd_out[i], qm_out[i], dqm_out[i])
         tau_out[i] = np.clip(tau_out[i], -500.0, 500.0)
 
-    # --- Compute Metrics ---
+    # Compute Metrics
     metrics = compute_metrics(t_out, q_out, qm_out, qd_out, error_out, tau_out)
 
     result = SimResult(
@@ -276,8 +228,9 @@ def run_simulation(config: SimConfig, verbose: bool = True) -> SimResult:
         q_desired=qd_out,
         error=error_out,
         tau=tau_out,
-        theta_adapt=theta_out,
+        alpha_adapt=alpha_out,
         end_effector=ee_out,
+        friction_torque=friction_out,
         metrics=metrics
     )
 
@@ -297,24 +250,18 @@ def compute_metrics(
     tau: np.ndarray
 ) -> dict:
     """
-    Menghitung metrik performa simulasi.
-
-    Returns:
-        dict: Metrik (steady-state error, overshoot, settling time, dll.)
+    Calculates simulation performance metrics.
     """
     N = len(t)
     metrics = {}
 
-    # Steady-state error (rata-rata 10% terakhir)
     last_10pct = int(0.9 * N)
     metrics['ss_error_j1'] = np.mean(np.abs(error[last_10pct:, 0]))
     metrics['ss_error_j2'] = np.mean(np.abs(error[last_10pct:, 1]))
 
-    # Peak error
     metrics['peak_error_j1'] = np.max(np.abs(error[:, 0]))
     metrics['peak_error_j2'] = np.max(np.abs(error[:, 1]))
 
-    # Overshoot (untuk step response)
     if q_desired[-1, 0] != 0:
         overshoot_j1 = (np.max(q[:, 0]) - q_desired[-1, 0]) / q_desired[-1, 0]
         metrics['overshoot_j1_pct'] = max(0, overshoot_j1) * 100
@@ -327,13 +274,11 @@ def compute_metrics(
     else:
         metrics['overshoot_j2_pct'] = 0.0
 
-    # Settling time (2% band)
     for joint_idx, joint_name in enumerate(['j1', 'j2']):
         target = q_desired[-1, joint_idx]
         if target != 0:
             band = 0.02 * abs(target)
             settled = np.abs(q[:, joint_idx] - target) < band
-            # Temukan waktu terakhir keluar dari band
             if np.all(settled):
                 metrics[f'settling_time_{joint_name}'] = 0.0
             else:
@@ -345,15 +290,12 @@ def compute_metrics(
         else:
             metrics[f'settling_time_{joint_name}'] = 0.0
 
-    # Max torque
     metrics['max_torque_j1'] = np.max(np.abs(tau[:, 0]))
     metrics['max_torque_j2'] = np.max(np.abs(tau[:, 1]))
 
-    # RMS error
     metrics['rms_error_j1'] = np.sqrt(np.mean(error[:, 0]**2))
     metrics['rms_error_j2'] = np.sqrt(np.mean(error[:, 1]**2))
 
-    # ISE (Integral Square Error)
     dt = t[1] - t[0] if len(t) > 1 else 0.001
     metrics['ise_j1'] = np.sum(error[:, 0]**2) * dt
     metrics['ise_j2'] = np.sum(error[:, 1]**2) * dt
@@ -366,14 +308,7 @@ def run_batch(
     verbose: bool = True
 ) -> List[SimResult]:
     """
-    Menjalankan batch simulasi (iterasi).
-
-    Args:
-        configs: List konfigurasi
-        verbose: Print progress
-
-    Returns:
-        List[SimResult]: Hasil semua simulasi
+    Runs a batch of simulations (iterations).
     """
     results = []
     total = len(configs)

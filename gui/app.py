@@ -10,6 +10,14 @@ Layout:
     │  Properties  │  Scope Tabs (7 views)         │
     │  Panel       │  + Metrics Table              │
     └──────────────┴───────────────────────────────┘
+
+Graph Tab Structure:
+    1. Basic System Output (4 subplots)
+    2. MRAC Performance Analysis (4 subplots)
+    3. Adaptive Parameters & Robustness (2 subplots)
+    4. Optimization: Gain Variation γ (2 subplots) — requires batch sim
+    5. Metrics Table
+    6. 3D Dynamics Visualizer
 """
 
 import sys
@@ -23,14 +31,15 @@ from PySide6.QtWidgets import (
     QFileDialog, QSizePolicy
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QPalette, QIcon
 
 from gui.theme import Theme, build_stylesheet
 from gui.diagram import BlockDiagramView
 from gui.properties import PropertiesPanel
 from gui.scope import ScopePlotCanvas
 from gui.metrics import MetricsTable
-from gui.worker import SimulationWorker
+from gui.worker import SimulationWorker, GainVariationWorker
+from gui.visualizer_pro import RobotArmVisualizer
 
 from models.config import default_config
 
@@ -40,11 +49,18 @@ class SimulinkGUI(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MRAC Simulink — 2-DoF Satellite Dish Antenna Controller")
-        self.resize(1440, 900)
+        self.setWindowTitle("MRAC Simulation — 2-DoF Satellite Dish Receiver")
+        
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mrac_icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+            
+        self.showMaximized()
         self.sim_config = default_config()
         self.sim_result = None
         self.worker = None
+        self.gain_worker = None
+        self.gain_results = None  # List of (gamma, SimResult) for gain variation
 
         self._build_toolbar()
         self._build_ui()
@@ -150,21 +166,25 @@ class SimulinkGUI(QMainWindow):
         self.scope_tabs = QTabWidget()
         self.scope_tabs.setDocumentMode(True)
 
-        self.canvas_j1 = ScopePlotCanvas()
-        self.canvas_j2 = ScopePlotCanvas()
-        self.canvas_error = ScopePlotCanvas()
-        self.canvas_torque = ScopePlotCanvas()
-        self.canvas_adapt = ScopePlotCanvas()
-        self.canvas_phase = ScopePlotCanvas()
+        # === Tab 1: Basic System Output ===
+        self.canvas_output = ScopePlotCanvas()
+        # === Tab 2: MRAC Performance Analysis ===
+        self.canvas_mrac = ScopePlotCanvas()
+        # === Tab 3: Adaptive Parameters & Robustness ===
+        self.canvas_adaptive = ScopePlotCanvas()
+        # === Tab 4: Optimization: Gain Variation ===
+        self.canvas_gain_var = ScopePlotCanvas()
+        # === Tab 5: Metrics ===
         self.metrics_table = MetricsTable()
+        # === Tab 6: 3D Visualizer ===
+        self.visualizer_3d = RobotArmVisualizer()
 
-        self.scope_tabs.addTab(self.canvas_j1, "📈 Joint 1 (Azimuth)")
-        self.scope_tabs.addTab(self.canvas_j2, "📉 Joint 2 (Elevation)")
-        self.scope_tabs.addTab(self.canvas_error, "📊 Tracking Error")
-        self.scope_tabs.addTab(self.canvas_torque, "⚡ Torque")
-        self.scope_tabs.addTab(self.canvas_adapt, "🔄 Adaptive Params")
-        self.scope_tabs.addTab(self.canvas_phase, "🌀 Phase Portrait")
-        self.scope_tabs.addTab(self.metrics_table, "📋 Metrics")
+        self.scope_tabs.addTab(self.canvas_output,   "📈 Basic System Output")
+        self.scope_tabs.addTab(self.canvas_mrac,     "📊 MRAC Performance Analysis")
+        self.scope_tabs.addTab(self.canvas_adaptive, "⚡ Adaptive Parameters")
+        self.scope_tabs.addTab(self.canvas_gain_var, "🔄 Optimization: Gain Variation")
+        self.scope_tabs.addTab(self.metrics_table,   "📋 Metrics")
+        self.scope_tabs.addTab(self.visualizer_3d,   "🛰️ 3D Dynamics")
 
         right_layout.addWidget(self.scope_tabs)
         h_splitter.addWidget(right_frame)
@@ -177,15 +197,13 @@ class SimulinkGUI(QMainWindow):
         self._draw_empty_scopes()
 
     def _draw_empty_scopes(self):
-        canvases = [self.canvas_j1, self.canvas_j2, self.canvas_error,
-                    self.canvas_torque, self.canvas_adapt, self.canvas_phase]
+        canvases = [self.canvas_output, self.canvas_mrac,
+                    self.canvas_adaptive, self.canvas_gain_var]
         titles = [
-            "Joint 1 (Azimuth) Response",
-            "Joint 2 (Elevation) Response",
-            "Tracking Error e(t)",
-            "Control Torque τ(t)",
-            "Adaptive Parameters θ(t)",
-            "Phase Portrait"
+            "Basic System Output — Angular Displacement & Velocity",
+            "MRAC Performance Analysis — Controlled Variable vs Reference Model",
+            "Adaptive Parameters & Robustness Analysis",
+            "Optimization — Effect of Adaptive Gain Variation (γ)"
         ]
         for canvas, title in zip(canvases, titles):
             ax = canvas.fig.add_subplot(111)
@@ -233,6 +251,7 @@ class SimulinkGUI(QMainWindow):
         )
         self.diagram_view.start_animation()
 
+        # Run main simulation
         self.worker = SimulationWorker(self.sim_config)
         self.worker.finished.connect(self._on_sim_done)
         self.worker.error_occurred.connect(self._on_sim_error)
@@ -240,6 +259,35 @@ class SimulinkGUI(QMainWindow):
 
     def _on_sim_done(self, result):
         self.sim_result = result
+
+        # Plot tabs 1-3 immediately
+        self._plot_output_dasar(result)
+        self._plot_mrac_analysis(result)
+        self._plot_adaptive_params(result)
+        self.metrics_table.update_metrics(result.metrics)
+
+        # Start 3D animation
+        self.visualizer_3d.start_animation(result.q, self.sim_config)
+
+        # Now launch gain variation batch simulation
+        self.sim_status_lbl.setText("  Solving gain variations...")
+        self.sim_status_lbl.setStyleSheet(
+            f"color: {Theme.ORANGE}; font-weight: bold;"
+        )
+        self.statusBar().showMessage(
+            "⏳ Running gain variation sweep (γ)..."
+        )
+
+        self.gain_worker = GainVariationWorker(self.sim_config)
+        self.gain_worker.finished.connect(self._on_gain_done)
+        self.gain_worker.error_occurred.connect(self._on_gain_error)
+        self.gain_worker.start()
+
+    def _on_gain_done(self, results):
+        """Called when gain variation batch simulation completes."""
+        self.gain_results = results
+        self._plot_gain_variation(results)
+
         self.run_btn.setEnabled(True)
         self.export_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
@@ -250,22 +298,32 @@ class SimulinkGUI(QMainWindow):
             f"color: {Theme.GREEN}; font-weight: bold;"
         )
 
-        m = result.metrics
+        m = self.sim_result.metrics
         self.statusBar().showMessage(
-            f"✓ Done T={result.t[-1]:.1f}s | "
+            f"✓ Done T={self.sim_result.t[-1]:.1f}s | "
             f"SSE: J1={np.degrees(m['ss_error_j1']):.4f}° "
             f"J2={np.degrees(m['ss_error_j2']):.4f}° | "
             f"OS: J1={m['overshoot_j1_pct']:.1f}% "
             f"J2={m['overshoot_j2_pct']:.1f}%"
         )
 
-        self._plot_joint1(result)
-        self._plot_joint2(result)
-        self._plot_error(result)
-        self._plot_torque(result)
-        self._plot_adaptive(result)
-        self._plot_phase(result)
-        self.metrics_table.update_metrics(result.metrics)
+        # Switch to first output tab
+        self.scope_tabs.setCurrentWidget(self.canvas_output)
+
+    def _on_gain_error(self, msg):
+        """If gain variation fails, still enable controls."""
+        self.run_btn.setEnabled(True)
+        self.export_btn.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.diagram_view.stop_animation()
+
+        self.sim_status_lbl.setText("  ✓ Partial (gain sweep failed)")
+        self.sim_status_lbl.setStyleSheet(
+            f"color: {Theme.YELLOW}; font-weight: bold;"
+        )
+        self.statusBar().showMessage(
+            f"✓ Main simulation done. Gain sweep error: {msg}"
+        )
 
     def _on_sim_error(self, msg):
         self.run_btn.setEnabled(True)
@@ -294,106 +352,252 @@ class SimulinkGUI(QMainWindow):
         ax.legend(facecolor=Theme.BG_LIGHT, edgecolor=Theme.BORDER,
                  labelcolor=Theme.TEXT_PRIMARY, fontsize=9, **kw)
 
-    def _plot_joint1(self, r):
-        c = self.canvas_j1; c.clear()
-        ax = c.fig.add_subplot(111); c.apply_style(ax)
+    # ────────────────────────────────────────────────────────
+    # TAB 1: Basic System Output
+    # ────────────────────────────────────────────────────────
+    def _plot_output_dasar(self, r):
+        """
+        4 subplots (2×2):
+          (a) Angular Displacement - Joint 1 → target 60°
+          (b) Angular Velocity - Joint 1
+          (c) Angular Displacement - Joint 2 → target 30°
+          (d) Angular Velocity - Joint 2
+        """
+        c = self.canvas_output
+        c.clear()
         t = r.t
-        ax.plot(t, np.degrees(r.q[:, 0]), color=Theme.BLUE, lw=2, label='Actual q₁')
-        ax.plot(t, np.degrees(r.q_ref[:, 0]), '--', color=Theme.GREEN, lw=1.5, label='Ref qm₁')
-        ax.plot(t, np.degrees(r.q_desired[:, 0]), ':', color=Theme.PURPLE, lw=1, alpha=.7, label='Desired')
-        ax.set_xlabel('Time (s)'); ax.set_ylabel('Angle (°)')
-        ax.set_title('Joint 1 — Azimuth Response'); ax.set_xlim([t[0], t[-1]])
-        self._legend(ax, loc='lower right')
-        os_p = r.metrics.get('overshoot_j1_pct', 0)
-        ts = r.metrics.get('settling_time_j1', 0)
-        self._annot_box(ax, f"Overshoot: {os_p:.1f}%\nSettling: {ts:.2f}s")
-        c.fig.tight_layout(); c.draw()
 
-    def _plot_joint2(self, r):
-        c = self.canvas_j2; c.clear()
-        ax = c.fig.add_subplot(111); c.apply_style(ax)
-        t = r.t
-        ax.plot(t, np.degrees(r.q[:, 1]), color=Theme.ORANGE, lw=2, label='Actual q₂')
-        ax.plot(t, np.degrees(r.q_ref[:, 1]), '--', color=Theme.GREEN, lw=1.5, label='Ref qm₂')
-        ax.plot(t, np.degrees(r.q_desired[:, 1]), ':', color=Theme.PURPLE, lw=1, alpha=.7, label='Desired')
-        ax.set_xlabel('Time (s)'); ax.set_ylabel('Angle (°)')
-        ax.set_title('Joint 2 — Elevation Response'); ax.set_xlim([t[0], t[-1]])
-        self._legend(ax, loc='lower right')
-        os_p = r.metrics.get('overshoot_j2_pct', 0)
-        ts = r.metrics.get('settling_time_j2', 0)
-        self._annot_box(ax, f"Overshoot: {os_p:.1f}%\nSettling: {ts:.2f}s")
-        c.fig.tight_layout(); c.draw()
+        # (a) Angular Displacement - Joint 1
+        ax1 = c.fig.add_subplot(221); c.apply_style(ax1)
+        ax1.plot(t, np.degrees(r.q[:, 0]), color=Theme.BLUE, lw=1.8,
+                 label='Output q₁ (°)')
+        ax1.plot(t, np.degrees(r.q_desired[:, 0]), ':', color=Theme.PURPLE,
+                 lw=1.2, alpha=.7, label='Reference (60°)')
+        ax1.axhline(60, color=Theme.GREEN, lw=0.8, ls='--', alpha=0.5)
+        ax1.set_ylabel('Degrees (°)')
+        ax1.set_title('Angular Displacement — Joint 1', fontsize=11)
+        self._legend(ax1, loc='lower right')
 
-    def _plot_error(self, r):
-        c = self.canvas_error; c.clear()
-        ax1 = c.fig.add_subplot(211); c.apply_style(ax1)
-        ax2 = c.fig.add_subplot(212, sharex=ax1); c.apply_style(ax2)
-        t = r.t
-        e1 = np.degrees(r.error[:, 0]); e2 = np.degrees(r.error[:, 1])
-        ax1.plot(t, e1, color=Theme.RED, lw=1.5, label='e₁(t)')
-        ax1.fill_between(t, e1, 0, alpha=.15, color=Theme.RED)
-        ax1.axhline(0, color=Theme.BORDER, lw=.5)
-        ax1.set_ylabel('J1 Error (°)'); ax1.set_title('Tracking Error — e(t) = q − qm')
-        self._legend(ax1, loc='upper right')
-        self._annot_box(ax1, f"SS Err: {np.degrees(r.metrics.get('ss_error_j1',0)):.4f}°", 'tr')
-        ax2.plot(t, e2, color=Theme.ORANGE, lw=1.5, label='e₂(t)')
-        ax2.fill_between(t, e2, 0, alpha=.15, color=Theme.ORANGE)
+        # (b) Angular Velocity - Joint 1
+        ax2 = c.fig.add_subplot(222); c.apply_style(ax2)
+        ax2.plot(t, np.degrees(r.dq[:, 0]), color=Theme.RED, lw=1.5,
+                 label='dq₁ (°/s)')
         ax2.axhline(0, color=Theme.BORDER, lw=.5)
-        ax2.set_xlabel('Time (s)'); ax2.set_ylabel('J2 Error (°)')
+        ax2.set_ylabel('Degrees/s (°/s)')
+        ax2.set_title('Angular Velocity — Joint 1', fontsize=11)
         self._legend(ax2, loc='upper right')
-        self._annot_box(ax2, f"SS Err: {np.degrees(r.metrics.get('ss_error_j2',0)):.4f}°", 'tr')
-        c.fig.tight_layout(); c.draw()
 
-    def _plot_torque(self, r):
-        c = self.canvas_torque; c.clear()
-        ax1 = c.fig.add_subplot(211); c.apply_style(ax1)
-        ax2 = c.fig.add_subplot(212, sharex=ax1); c.apply_style(ax2)
+        # (c) Angular Displacement - Joint 2
+        ax3 = c.fig.add_subplot(223); c.apply_style(ax3)
+        ax3.plot(t, np.degrees(r.q[:, 1]), color=Theme.ORANGE, lw=1.8,
+                 label='Output q₂ (°)')
+        ax3.plot(t, np.degrees(r.q_desired[:, 1]), ':', color=Theme.PURPLE,
+                 lw=1.2, alpha=.7, label='Reference (30°)')
+        ax3.axhline(30, color=Theme.GREEN, lw=0.8, ls='--', alpha=0.5)
+        ax3.set_xlabel('Time (s)')
+        ax3.set_ylabel('Degrees (°)')
+        ax3.set_title('Angular Displacement — Joint 2', fontsize=11)
+        self._legend(ax3, loc='lower right')
+
+        # (d) Angular Velocity - Joint 2
+        ax4 = c.fig.add_subplot(224); c.apply_style(ax4)
+        ax4.plot(t, np.degrees(r.dq[:, 1]), color=Theme.CYAN, lw=1.5,
+                 label='dq₂ (°/s)')
+        ax4.axhline(0, color=Theme.BORDER, lw=.5)
+        ax4.set_xlabel('Time (s)')
+        ax4.set_ylabel('Degrees/s (°/s)')
+        ax4.set_title('Angular Velocity — Joint 2', fontsize=11)
+        self._legend(ax4, loc='upper right')
+
+        c.fig.suptitle('Basic System Output Graphs', fontsize=14,
+                       fontweight='bold', color=Theme.MPL_TEXT, y=1.0)
+        c.fig.tight_layout()
+        c.draw()
+
+    # ────────────────────────────────────────────────────────
+    # TAB 2: Controller Performance Analysis (MRAC)
+    # ────────────────────────────────────────────────────────
+    def _plot_mrac_analysis(self, r):
+        """
+        4 subplots (2×2):
+          (a) Controlled Var vs Reference Model - Joint 1
+          (b) Controlled Var vs Reference Model - Joint 2
+          (c) Error Signal - Joint 1
+          (d) Error Signal - Joint 2
+        """
+        c = self.canvas_mrac
+        c.clear()
         t = r.t
-        ax1.plot(t, r.tau[:, 0], color=Theme.BLUE, lw=1.2, label='τ₁')
-        ax1.fill_between(t, r.tau[:, 0], 0, alpha=.1, color=Theme.BLUE)
-        ax1.set_ylabel('τ₁ (Nm)'); ax1.set_title('Control Torque Profile')
-        self._legend(ax1, loc='upper right')
-        self._annot_box(ax1, f"Max |τ₁|: {r.metrics.get('max_torque_j1',0):.1f} Nm", 'tr')
-        ax2.plot(t, r.tau[:, 1], color=Theme.ORANGE, lw=1.2, label='τ₂')
-        ax2.fill_between(t, r.tau[:, 1], 0, alpha=.1, color=Theme.ORANGE)
-        ax2.set_xlabel('Time (s)'); ax2.set_ylabel('τ₂ (Nm)')
-        self._legend(ax2, loc='upper right')
-        self._annot_box(ax2, f"Max |τ₂|: {r.metrics.get('max_torque_j2',0):.1f} Nm", 'tr')
-        c.fig.tight_layout(); c.draw()
 
-    def _plot_adaptive(self, r):
-        c = self.canvas_adapt; c.clear()
+        # (a) Controlled Variable vs Reference Model - Joint 1
+        ax1 = c.fig.add_subplot(221); c.apply_style(ax1)
+        ax1.plot(t, np.degrees(r.q[:, 0]), color=Theme.BLUE, lw=2,
+                 label='Controlled Variable (q₁)')
+        ax1.plot(t, np.degrees(r.q_ref[:, 0]), '--', color=Theme.GREEN, lw=1.5,
+                 label='Reference Model (qm₁)')
+        ax1.set_ylabel('Degrees (°)')
+        ax1.set_title('Controlled Variable vs Reference Model — Joint 1', fontsize=10)
+        self._legend(ax1, loc='lower right')
+
+        # (b) Controlled Variable vs Reference Model - Joint 2
+        ax2 = c.fig.add_subplot(222); c.apply_style(ax2)
+        ax2.plot(t, np.degrees(r.q[:, 1]), color=Theme.ORANGE, lw=2,
+                 label='Controlled Variable (q₂)')
+        ax2.plot(t, np.degrees(r.q_ref[:, 1]), '--', color=Theme.GREEN, lw=1.5,
+                 label='Reference Model (qm₂)')
+        ax2.set_ylabel('Degrees (°)')
+        ax2.set_title('Controlled Variable vs Reference Model — Joint 2', fontsize=10)
+        self._legend(ax2, loc='lower right')
+
+        # (c) Error Signal - Joint 1
+        ax3 = c.fig.add_subplot(223); c.apply_style(ax3)
+        e1 = np.degrees(r.error[:, 0])
+        ax3.plot(t, e1, color=Theme.RED, lw=1.5, label='e₁ = q₁ - qm₁')
+        ax3.fill_between(t, e1, 0, color=Theme.RED, alpha=0.1)
+        ax3.axhline(0, color=Theme.BORDER, lw=.5)
+        ax3.set_xlabel('Time (s)')
+        ax3.set_ylabel('Error (°)')
+        ax3.set_title('Error Signal — Joint 1', fontsize=10)
+        self._legend(ax3, loc='upper right')
+
+        # (d) Error Signal - Joint 2
+        ax4 = c.fig.add_subplot(224); c.apply_style(ax4)
+        e2 = np.degrees(r.error[:, 1])
+        ax4.plot(t, e2, color=Theme.ORANGE, lw=1.5, label='e₂ = q₂ - qm₂')
+        ax4.fill_between(t, e2, 0, color=Theme.ORANGE, alpha=0.1)
+        ax4.axhline(0, color=Theme.BORDER, lw=.5)
+        ax4.set_xlabel('Time (s)')
+        ax4.set_ylabel('Error (°)')
+        ax4.set_title('Error Signal — Joint 2', fontsize=10)
+        self._legend(ax4, loc='upper right')
+
+        c.fig.suptitle('MRAC Performance Analysis', fontsize=14,
+                       fontweight='bold', color=Theme.MPL_TEXT, y=1.0)
+        c.fig.tight_layout()
+        c.draw()
+
+    # ────────────────────────────────────────────────────────
+    # TAB 3: Adaptive Parameters & Robustness
+    # ────────────────────────────────────────────────────────
+    def _plot_adaptive_params(self, r):
+        """
+        2 subplots (2×1):
+          (a) Adaptive parameter dα₁ vs dissipative term - Joint 1
+          (b) Adaptive parameter dα₂ vs dissipative term - Joint 2
+        """
+        c = self.canvas_adaptive
+        c.clear()
+        t = r.t
+
+        # Compute dalpha/dt numerically (derivative of adaptive parameters)
+        dt_t = np.diff(t)
+        # alpha_adapt is (N, 2)
+        dalpha_j1 = np.gradient(r.alpha_adapt[:, 0], t)
+        dalpha_j2 = np.gradient(r.alpha_adapt[:, 1], t)
+
+        # Friction/dissipative torque
+        if r.friction_torque is not None:
+            fric_j1 = r.friction_torque[:, 0]
+            fric_j2 = r.friction_torque[:, 1]
+        else:
+            # Fallback: estimate from velocity
+            fric_j1 = 2.5 * r.dq[:, 0]
+            fric_j2 = 1.8 * r.dq[:, 1]
+
+        # (a) Joint 1
         ax1 = c.fig.add_subplot(211); c.apply_style(ax1)
-        ax2 = c.fig.add_subplot(212, sharex=ax1); c.apply_style(ax2)
-        t = r.t; names = ['θ_r', 'θ_q', 'θ_dq']
-        colors = [Theme.BLUE, Theme.ORANGE, Theme.PURPLE]
-        for p in range(3):
-            ax1.plot(t, r.theta_adapt[:, p], color=colors[p], lw=1.5, label=names[p])
-        ax1.set_ylabel('θ'); ax1.set_title('Adaptive Parameters — Joint 1')
-        self._legend(ax1, loc='upper right', ncol=3)
-        for p in range(3):
-            ax2.plot(t, r.theta_adapt[:, 3+p], color=colors[p], lw=1.5, label=names[p])
-        ax2.set_xlabel('Time (s)'); ax2.set_ylabel('θ')
-        ax2.set_title('Adaptive Parameters — Joint 2')
-        self._legend(ax2, loc='upper right', ncol=3)
-        c.fig.tight_layout(); c.draw()
+        ax1_twin = ax1.twinx()
+        ln1 = ax1.plot(t, dalpha_j1, color=Theme.BLUE, lw=1.5,
+                        label='dα₁/dt (Adaptation Rate)')
+        ln2 = ax1_twin.plot(t, fric_j1, color=Theme.RED, lw=1.2, ls='--',
+                             label='Dissipative Term (Friction τ_f₁)')
+        ax1.set_ylabel('dα₁/dt', color=Theme.BLUE)
+        ax1_twin.set_ylabel('Friction Torque (Nm)', color=Theme.RED)
+        ax1.set_title(
+            'Adaptive Parameter Behavior (dα₁) vs Dissipative Term — Joint 1',
+            fontsize=10
+        )
+        ax1_twin.tick_params(colors=Theme.MPL_TICK)
+        ax1_twin.spines['right'].set_color(Theme.BORDER)
+        # Combined legend
+        lns = ln1 + ln2
+        labs = [l.get_label() for l in lns]
+        ax1.legend(lns, labs, facecolor=Theme.BG_LIGHT, edgecolor=Theme.BORDER,
+                   labelcolor=Theme.TEXT_PRIMARY, fontsize=9, loc='upper right')
 
-    def _plot_phase(self, r):
-        c = self.canvas_phase; c.clear()
-        ax1 = c.fig.add_subplot(121); c.apply_style(ax1)
-        ax2 = c.fig.add_subplot(122); c.apply_style(ax2)
-        de = np.gradient(r.error, r.t, axis=0)
-        for idx, (ax, tit) in enumerate(zip([ax1, ax2], ['Joint 1', 'Joint 2'])):
-            ed = np.degrees(r.error[:, idx])
-            ded = np.degrees(de[:, idx])
-            sc = ax.scatter(ed, ded, c=r.t, cmap='cool', s=2, alpha=.6)
-            ax.plot(ed[0], ded[0], 'o', color=Theme.GREEN, ms=8, label='Start', zorder=5)
-            ax.plot(ed[-1], ded[-1], 's', color=Theme.RED, ms=8, label='End', zorder=5)
-            ax.set_xlabel(f'e{idx+1} (°)'); ax.set_ylabel(f'ė{idx+1} (°/s)')
-            ax.set_title(tit)
-            self._legend(ax, loc='upper right')
-            c.fig.colorbar(sc, ax=ax, label='Time (s)', shrink=.8)
-        c.fig.tight_layout(); c.draw()
+        # (b) Joint 2
+        ax2 = c.fig.add_subplot(212, sharex=ax1); c.apply_style(ax2)
+        ax2_twin = ax2.twinx()
+        ln3 = ax2.plot(t, dalpha_j2, color=Theme.ORANGE, lw=1.5,
+                        label='dα₂/dt (Adaptation Rate)')
+        ln4 = ax2_twin.plot(t, fric_j2, color=Theme.PURPLE, lw=1.2, ls='--',
+                             label='Dissipative Term (Friction τ_f₂)')
+        ax2.set_xlabel('Time (s)')
+        ax2.set_ylabel('dα₂/dt', color=Theme.ORANGE)
+        ax2_twin.set_ylabel('Friction Torque (Nm)', color=Theme.PURPLE)
+        ax2.set_title(
+            'Adaptive Parameter Behavior (dα₂) vs Dissipative Term — Joint 2',
+            fontsize=10
+        )
+        ax2_twin.tick_params(colors=Theme.MPL_TICK)
+        ax2_twin.spines['right'].set_color(Theme.BORDER)
+        lns2 = ln3 + ln4
+        labs2 = [l.get_label() for l in lns2]
+        ax2.legend(lns2, labs2, facecolor=Theme.BG_LIGHT, edgecolor=Theme.BORDER,
+                   labelcolor=Theme.TEXT_PRIMARY, fontsize=9, loc='upper right')
+
+        c.fig.suptitle('Adaptive Parameters & Robustness Analysis', fontsize=14,
+                       fontweight='bold', color=Theme.MPL_TEXT, y=1.0)
+        c.fig.tight_layout()
+        c.draw()
+
+    # ────────────────────────────────────────────────────────
+    # TAB 4: Gain Variation Optimization (γ)
+    # ────────────────────────────────────────────────────────
+    def _plot_gain_variation(self, gain_results):
+        """
+        2 subplots (2×1):
+          (a) Effect of gain variation γ on output - Joint 1
+          (b) Effect of gain variation γ on output - Joint 2
+        """
+        c = self.canvas_gain_var
+        c.clear()
+
+        colors = ['#58a6ff', '#3fb950', '#f0883e', '#f85149', '#bc8cff']
+
+        # (a) Joint 1
+        ax1 = c.fig.add_subplot(211); c.apply_style(ax1)
+        for idx, (gamma_val, result) in enumerate(gain_results):
+            color = colors[idx % len(colors)]
+            ax1.plot(result.t, np.degrees(result.q[:, 0]),
+                     color=color, lw=1.3, label=f'γ = {gamma_val}')
+        # Plot reference
+        ref_result = gain_results[0][1]
+        ax1.plot(ref_result.t, np.degrees(ref_result.q_desired[:, 0]),
+                 ':', color=Theme.TEXT_MUTED, lw=1.5, label='Target (60°)')
+        ax1.set_ylabel('Degrees (°)')
+        ax1.set_title('Effect of Adaptive Gain Variation (γ) on Output — Joint 1',
+                       fontsize=11)
+        self._legend(ax1, loc='lower right', ncol=3)
+
+        # (b) Joint 2
+        ax2 = c.fig.add_subplot(212, sharex=ax1); c.apply_style(ax2)
+        for idx, (gamma_val, result) in enumerate(gain_results):
+            color = colors[idx % len(colors)]
+            ax2.plot(result.t, np.degrees(result.q[:, 1]),
+                     color=color, lw=1.3, label=f'γ = {gamma_val}')
+        ax2.plot(ref_result.t, np.degrees(ref_result.q_desired[:, 1]),
+                 ':', color=Theme.TEXT_MUTED, lw=1.5, label='Target (30°)')
+        ax2.set_xlabel('Time (s)')
+        ax2.set_ylabel('Degrees (°)')
+        ax2.set_title('Effect of Adaptive Gain Variation (γ) on Output — Joint 2',
+                       fontsize=11)
+        self._legend(ax2, loc='lower right', ncol=3)
+
+        c.fig.suptitle('Optimization — Adaptive Gain Variation (γ)', fontsize=14,
+                       fontweight='bold', color=Theme.MPL_TEXT, y=1.0)
+        c.fig.tight_layout()
+        c.draw()
 
     # ── Export ────────────────────────────────────────────────
     def _export_results(self):
@@ -408,12 +612,10 @@ class SimulinkGUI(QMainWindow):
         try:
             r = self.sim_result
             for canvas, name in [
-                (self.canvas_j1, 'joint1_response'),
-                (self.canvas_j2, 'joint2_response'),
-                (self.canvas_error, 'tracking_error'),
-                (self.canvas_torque, 'torque_profile'),
-                (self.canvas_adapt, 'adaptive_params'),
-                (self.canvas_phase, 'phase_portrait'),
+                (self.canvas_output,   'basic_system_output_graphs'),
+                (self.canvas_mrac,     'mrac_performance_analysis_graphs'),
+                (self.canvas_adaptive, 'adaptive_params_robustness_graphs'),
+                (self.canvas_gain_var, 'gain_variation_optimization_graphs'),
             ]:
                 canvas.fig.savefig(
                     os.path.join(folder, f'{name}.png'),
@@ -424,11 +626,14 @@ class SimulinkGUI(QMainWindow):
             header = ('time,q1_rad,q2_rad,dq1,dq2,'
                      'qm1_rad,qm2_rad,e1_rad,e2_rad,'
                      'tau1_Nm,tau2_Nm,'
-                     'theta_r1,theta_q1,theta_dq1,'
-                     'theta_r2,theta_q2,theta_dq2,'
-                     'ee_x,ee_y,ee_z')
+                     'alpha1,alpha2,'
+                     'ee_x,ee_y,ee_z,'
+                     'friction_j1,friction_j2')
+
+            fric_data = r.friction_torque if r.friction_torque is not None else np.zeros((len(r.t), 2))
             data = np.column_stack([r.t, r.q, r.dq, r.q_ref, r.error,
-                                    r.tau, r.theta_adapt, r.end_effector])
+                                    r.tau, r.alpha_adapt, r.end_effector,
+                                    fric_data])
             np.savetxt(csv_path, data, delimiter=',', header=header,
                       comments='', fmt='%.8f')
 
@@ -439,7 +644,7 @@ class SimulinkGUI(QMainWindow):
                     f.write(f"{k}: {v:.6f}\n")
 
             QMessageBox.information(self, "Export Complete",
-                                  f"8 files exported to:\n{folder}")
+                                  f"Files exported to:\n{folder}")
             self.statusBar().showMessage(f"✓ Exported to {folder}", 5000)
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))

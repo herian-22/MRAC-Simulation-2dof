@@ -1,0 +1,16 @@
+MRAC 2-DoF Simulation Metrics
+========================================
+ss_error_j1: 0.000052
+ss_error_j2: 0.000026
+peak_error_j1: 0.155362
+peak_error_j2: 0.075044
+overshoot_j1_pct: 4.544659
+overshoot_j2_pct: 4.845188
+settling_time_j1: 2.933000
+settling_time_j2: 2.944000
+max_torque_j1: 349.508138
+max_torque_j2: 190.479645
+rms_error_j1: 0.051143
+rms_error_j2: 0.024803
+ise_j1: 0.026156
+ise_j2: 0.006152

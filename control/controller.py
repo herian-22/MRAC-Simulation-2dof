@@ -1,17 +1,17 @@
 """
-controller.py — Kontroler Computed Torque + MRAC (MIT Rule)
+controller.py — Computed Torque + MRAC (MIT Rule) Controller
 
-Strategi kontrol berlapis:
-1. Computed Torque  : Linearisasi umpan balik (menghilangkan non-linearitas)
-2. MRAC (MIT Rule)  : Adaptasi online untuk menangani ketidakpastian model
+Layered control strategy:
+1. Computed Torque  : Feedback linearization (removes nonlinearities)
+2. MRAC (MIT Rule)  : Online adaptation to handle model uncertainty
 
-Hukum kontrol:
+Control law:
     τ = M(q)·(q̈_d + Kv·ė + Kp·e + u_mrac) + C(q, q̇)·q̇ + G(q)
 
-Adaptasi MIT Rule:
+MIT Rule Adaptation:
     dθ/dt = -γ · e · (∂ym/∂θ) ≈ -γ · e · sensitivity
 
-Referensi: Soares et al. (2021)
+Reference: Soares et al. (2021)
 """
 
 import numpy as np
@@ -22,7 +22,7 @@ from models.reference_model import ReferenceModel
 
 class ComputedTorqueController:
     """
-    Kontroler Computed Torque (feedback linearization).
+    Computed Torque Controller (feedback linearization).
 
     τ = M(q)·(q̈_d + Kv·ė + Kp·e) + C(q, q̇)·q̇ + G(q)
     """
@@ -42,17 +42,9 @@ class ComputedTorqueController:
         u_adaptive: np.ndarray = None
     ) -> np.ndarray:
         """
-        Menghitung torsi kontroler.
-
-        Args:
-            q, dq:          State aktual [posisi, kecepatan]
-            q_d, dq_d, ddq_d: Desired trajectory
-            u_adaptive:     Sinyal kontrol adaptif tambahan (dari MRAC)
-
-        Returns:
-            tau: Vektor torsi [τ1, τ2] (Nm)
+        Calculates the controller torque.
         """
-        # Error tracking
+        # Tracking error
         e = q_d - q
         de = dq_d - dq
 
@@ -70,10 +62,9 @@ class ComputedTorqueController:
 
 class MRACController:
     """
-    Model Reference Adaptive Controller menggunakan MIT Rule.
-
-    Mengadaptasi parameter kontroler secara online untuk meminimalkan
-    error antara output plant dan model referensi.
+    Model Reference Adaptive Controller using MIT Rule for 2-DoF.
+    Specifically adjusts 1 adaptive parameter alpha_i per joint to compensate
+    for dissipative torque (alpha_i \approx b_i).
     """
 
     def __init__(
@@ -85,123 +76,53 @@ class MRACController:
     ):
         self.dynamics = dynamics
         self.params = params
-        self.ct_controller = ComputedTorqueController(dynamics, params)
-
-        # Reference models per joint
+        self.ct_controller = ComputedTorqueController(dynamics, params) # Keep just in case
         self.ref_models = [ref_model_j1, ref_model_j2]
-
-        # Adaptive gains (MIT Rule)
         self.gamma = np.array([params.gamma1, params.gamma2])
+        
+        # Adaptive parameters
+        self.alpha = np.zeros(2)
 
-        # Adaptive parameters (θ) — initialized to zero
-        # θ = [θ_r, θ_q, θ_dq] for each joint (feedforward, position, velocity)
-        self.n_params_per_joint = 3
-        self.theta = np.zeros(2 * self.n_params_per_joint)  # [θ_j1(3), θ_j2(3)]
-
-    def adaptive_signal(
-        self,
-        q: np.ndarray,
-        dq: np.ndarray,
-        r: np.ndarray
-    ) -> np.ndarray:
+    def adaptation_law(self, e: np.ndarray, dphi: np.ndarray) -> np.ndarray:
         """
-        Menghitung sinyal kontrol adaptif u_mrac.
-
-        u_mrac_i = θ_r_i · r_i + θ_q_i · q_i + θ_dq_i · dq_i
-
-        Args:
-            q: Sudut joint aktual [q1, q2]
-            dq: Kecepatan joint aktual [dq1, dq2]
-            r: Input referensi [r1, r2]
-
-        Returns:
-            u_mrac: Sinyal kontrol adaptif [u1, u2]
+        MIT Rule: d(alpha_i)/dt = -gamma_i * e_i * d(phi_i)/dt
         """
-        u = np.zeros(2)
-        for i in range(2):
-            idx = i * self.n_params_per_joint
-            theta_r = self.theta[idx]
-            theta_q = self.theta[idx + 1]
-            theta_dq = self.theta[idx + 2]
-            u[i] = theta_r * r[i] + theta_q * q[i] + theta_dq * dq[i]
-
-        return u
-
-    def adaptation_law(
-        self,
-        e: np.ndarray,
-        q: np.ndarray,
-        dq: np.ndarray,
-        r: np.ndarray,
-        xm: np.ndarray
-    ) -> np.ndarray:
-        """
-        MIT Rule: dθ/dt = -γ · e · φ(t)
-
-        Dimana φ(t) adalah regressor vector (sensitivity).
-
-        Args:
-            e: Error [e1, e2] = q - qm (aktual - referensi)
-            q: Sudut joint aktual
-            dq: Kecepatan joint aktual
-            r: Input referensi
-            xm: State model referensi [[qm1, dqm1], [qm2, dqm2]]
-
-        Returns:
-            dtheta: Turunan parameter adaptif (6,)
-        """
-        dtheta = np.zeros_like(self.theta)
-
-        for i in range(2):
-            idx = i * self.n_params_per_joint
-            gamma_i = self.gamma[i]
-
-            # Sensitivity (regressor vector)
-            ref = self.ref_models[i]
-            wn2 = ref.omega_n ** 2
-
-            # Normalized sensitivity untuk stabilitas yang lebih baik
-            norm_factor = 1.0 / (1.0 + r[i]**2 + q[i]**2 + dq[i]**2)
-
-            # MIT Rule update
-            dtheta[idx]     = -gamma_i * e[i] * r[i] * norm_factor     # θ_r
-            dtheta[idx + 1] = -gamma_i * e[i] * q[i] * norm_factor     # θ_q
-            dtheta[idx + 2] = -gamma_i * e[i] * dq[i] * norm_factor    # θ_dq
-
-        return dtheta
+        dalpha = np.zeros(2)
+        dalpha[0] = -self.gamma[0] * e[0] * dphi[0]
+        dalpha[1] = -self.gamma[1] * e[1] * dphi[1]
+        return dalpha
 
     def compute_full_torque(
         self,
         q: np.ndarray,
         dq: np.ndarray,
-        q_d: np.ndarray,
-        dq_d: np.ndarray,
-        ddq_d: np.ndarray,
-        r: np.ndarray
+        u_ref: np.ndarray,
+        qm: np.ndarray,
+        dqm: np.ndarray
     ) -> np.ndarray:
         """
-        Menghitung total torsi: Computed Torque + MRAC.
-
-        Args:
-            q, dq:          State aktual
-            q_d, dq_d, ddq_d: Desired (dari reference model)
-            r:              Input referensi (setpoint)
-
-        Returns:
-            tau: Total torsi [τ1, τ2] (Nm)
+        Calculates the total torque according to the model in the paper: 
+        Computed Torque + Adaptive Control (friction compensation)
+        Tracking target: Reference Model (qm, dqm)
         """
-        # Sinyal adaptif
-        u_mrac = self.adaptive_signal(q, dq, r)
-
-        # Computed torque + adaptive
-        tau = self.ct_controller.compute_torque(q, dq, q_d, dq_d, ddq_d, u_mrac)
-
-        return tau
-
-    def clip_theta(self):
-        """Clamp parameter adaptif agar tidak diverge."""
-        self.theta = np.clip(
-            self.theta,
-            self.params.theta_min,
-            self.params.theta_max
-        )
+        M, C, G = self.dynamics.compute_dynamics(q, dq)
+        
+        ref1 = self.ref_models[0]
+        ref2 = self.ref_models[1]
+        
+        # Acceleration feedforward from reference model dynamics
+        # qm_ddot = omega^2 * r - 2*zeta*omega*qm_dot - omega^2 * qm
+        ddqm = np.zeros(2)
+        ddqm[0] = (ref1.omega_n**2 * u_ref[0]) - (2 * ref1.zeta * ref1.omega_n * dqm[0]) - (ref1.omega_n**2 * qm[0])
+        ddqm[1] = (ref2.omega_n**2 * u_ref[1]) - (2 * ref2.zeta * ref2.omega_n * dqm[1]) - (ref2.omega_n**2 * qm[1])
+        
+        # PD Tracking Error (relative to reference model trajectory)
+        e_q = qm - q
+        e_dq = dqm - dq
+        
+        v = ddqm + self.ct_controller.Kv @ e_dq + self.ct_controller.Kp @ e_q
+        
+        tau_m = M @ v + C @ dq + G
+        tau_a = np.array([self.alpha[0] * dq[0], self.alpha[1] * dq[1]])
+        
+        return tau_m + tau_a

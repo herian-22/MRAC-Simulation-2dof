@@ -44,6 +44,11 @@ coverage.xml
 # Temporary outputs
 installer_output/
 *.log
+*.csv
+*.png
+*.pdf
+mrac_results/
+.ipynb_checkpoints/
 
 # Windows specific
 Thumbs.db

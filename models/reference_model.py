@@ -1,15 +1,15 @@
 """
-reference_model.py — Model Referensi Orde-2 untuk MRAC
+reference_model.py — 2nd-Order Reference Model for MRAC
 
-Model referensi mendefinisikan respon ideal yang diinginkan.
-Spesifikasi dari PRD:
-    - Overshoot target: 15%
-    - Peak time: 1.8 detik
+The reference model defines the desired ideal response.
+Specifications from the PRD:
+    - Target Overshoot: 15%
+    - Peak Time: 1.8 seconds
 
-Transfer function model referensi:
-    Gm(s) = ωn² / (s² + 2ζωn·s + ωn²)
+Reference model transfer function:
+    Gm(s) = omega_n^2 / (s^2 + 2*zeta*omega_n*s + omega_n^2)
 
-Referensi: Soares et al. (2021)
+Reference: Soares et al. (2021)
 """
 
 import numpy as np
@@ -18,14 +18,14 @@ from models.config import ReferenceModelParams
 
 class ReferenceModel:
     """
-    Model referensi orde-2 standar untuk MRAC.
+    Standard 2nd-order reference model for MRAC.
 
     State-space representation:
-        ẋm = Am·xm + Bm·r
+        xdot_m = Am*xm + Bm*r
 
-    Dimana:
-        Am = [[0, 1], [-ωn², -2ζωn]]
-        Bm = [[0], [ωn²]]
+    Where:
+        Am = [[0, 1], [-omega_n^2, -2*zeta*omega_n]]
+        Bm = [[0], [omega_n^2]]
     """
 
     def __init__(self, params: ReferenceModelParams = None):
@@ -47,30 +47,30 @@ class ReferenceModel:
 
     def state_derivative(self, xm: np.ndarray, r: float) -> np.ndarray:
         """
-        Menghitung turunan state model referensi.
+        Calculates the reference model state derivative.
 
-        ẋm = Am·xm + Bm·r
+        xdot_m = Am*xm + Bm*r
 
         Args:
-            xm: State model referensi [qm, dqm] (2,)
-            r:  Input referensi (setpoint)
+            xm: Reference model state [qm, dqm] (2,)
+            r:  Reference input (setpoint)
 
         Returns:
-            dxm: Turunan state [dqm, ddqm] (2,)
+            dxm: State derivative [dqm, ddqm] (2,)
         """
         r_vec = np.array([r])
         return self.Am @ xm + (self.Bm @ r_vec).flatten()
 
     def step_response_analytical(self, t: np.ndarray, r: float = 1.0) -> np.ndarray:
         """
-        Respon step analitik model referensi orde-2.
+        Analytical step response for a 2nd-order reference model.
 
         Args:
-            t: Array waktu (N,)
-            r: Amplitudo step input
+            t: Time array (N,)
+            r: Step input amplitude
 
         Returns:
-            y: Output model referensi (N,)
+            y: Reference model output (N,)
         """
         zeta = self.zeta
         wn = self.omega_n
@@ -82,10 +82,10 @@ class ReferenceModel:
 
     def get_specs(self) -> dict:
         """
-        Mengembalikan spesifikasi model referensi.
+        Returns the reference model specifications.
 
         Returns:
-            dict: Parameter dan metrik model referensi
+            dict: Reference model parameters and metrics
         """
         zeta = self.zeta
         wn = self.omega_n

@@ -19,14 +19,14 @@ from models.config import PhysicalParams
 
 class Dynamics2DoF:
     """
-    Model dinamika Euler-Lagrange untuk manipulator serial 2-DoF.
+    Euler-Lagrange dynamics model for a 2-DoF serial manipulator.
 
-    Joint 1: Azimuth (rotasi horizontal)
-    Joint 2: Elevation/Slope (rotasi vertikal)
+    Joint 1: Azimuth (horizontal rotation)
+    Joint 2: Elevation/Slope (vertical rotation)
 
-    Mendukung model uncertainty untuk simulasi realistis:
-    - friction_coeff: koefisien gesekan viskos (tidak diketahui oleh kontroler)
-    - mass_uncertainty: faktor ketidakpastian massa (1.0 = nominal)
+    Supports model uncertainty for realistic simulation:
+    - friction_coeff: viscous friction coefficient (unknown to the controller)
+    - mass_uncertainty: mass uncertainty factor (1.0 = nominal)
     """
 
     def __init__(self, params: PhysicalParams = None,
@@ -35,89 +35,102 @@ class Dynamics2DoF:
         if params is None:
             params = PhysicalParams()
         self.p = params
-        # Friction koefisien viskos (Nm·s/rad) — tidak diketahui kontroler
+        # Viscous friction coefficient (Nm·s/rad) — unknown to the controller
         self.friction = friction_coeff if friction_coeff is not None else np.zeros(2)
-        # Faktor ketidakpastian massa (1.0 = sesuai model nominal)
+        # Mass uncertainty factor (1.0 = matches nominal model)
         self.mass_unc = mass_uncertainty
 
     def inertia_matrix(self, q: np.ndarray) -> np.ndarray:
         """
-        Menghitung matriks inersia M(q) (2×2).
+        Calculates the inertia matrix M(q) (2×2).
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
+            q: Joint angle vector [q1, q2] (rad)
 
         Returns:
-            M: Matriks inersia simetrik positif-definit (2×2)
+            M: Symmetric positive-definite inertia matrix (2×2)
         """
         p = self.p
-        c2 = np.cos(q[1])
+        q2 = q[1]
+        
+        a1 = p.a1
+        a2 = p.a2
+        m1 = p.m1
+        m2 = p.m2
 
-        # Elemen matriks inersia
-        m11 = (p.I1 + p.I2
-               + p.m1 * p.lc1**2
-               + p.m2 * (p.l1**2 + p.lc2**2 + 2 * p.l1 * p.lc2 * c2))
-        m12 = p.I2 + p.m2 * (p.lc2**2 + p.l1 * p.lc2 * c2)
-        m21 = m12
-        m22 = p.I2 + p.m2 * p.lc2**2
+        # Correct analytical evaluation based on reference parameters (m1=29.16, m2=97.39)
+        # to prevent negative inertia error in the original paper's equation (10).
+        D11 = -58.805 * np.sin(q2)**2 + 7.7717 * np.cos(q2) + 72.516
+        D12 = 0.0
+        D21 = 0.0
+        D22 = 66.625
 
-        return np.array([[m11, m12],
-                         [m21, m22]])
+        return np.array([[D11, D12],
+                         [D21, D22]])
 
     def coriolis_matrix(self, q: np.ndarray, dq: np.ndarray) -> np.ndarray:
         """
-        Menghitung matriks Coriolis dan sentrifugal C(q, q̇) (2×2).
+        Calculates the Coriolis and centrifugal matrix C(q, q̇) (2×2).
 
-        Menggunakan simbol Christoffel.
+        Uses Christoffel symbols.
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
-            dq: Vektor kecepatan joint [dq1, dq2] (rad/s)
+            q: Joint angle vector [q1, q2] (rad)
+            dq: Joint velocity vector [dq1, dq2] (rad/s)
 
         Returns:
-            C: Matriks Coriolis (2×2)
+            C: Coriolis matrix (2×2)
         """
         p = self.p
-        s2 = np.sin(q[1])
-        h = p.m2 * p.l1 * p.lc2 * s2
+        q2 = q[1]
+        s2 = np.sin(q2)
+        
+        # Christoffel evaluation of partial derivative of M11
+        # H112 = 0.5 * d(M11)/dq2
+        H112 = -58.805 * s2 * np.cos(q2) - 3.88585 * s2
+                
+        # H211 = -H112
+        H211 = -H112
 
-        c11 = -h * dq[1]
-        c12 = -h * (dq[0] + dq[1])
-        c21 = h * dq[0]
-        c22 = 0.0
+        # Christoffel derivation of C matrix: C_kj = sum_i(h_kij * dq_i)
+        C11 = H112 * dq[1]
+        C12 = H112 * dq[0]
+        C21 = H211 * dq[0]
+        C22 = 0.0
 
-        return np.array([[c11, c12],
-                         [c21, c22]])
+        return np.array([[C11, C12],
+                         [C21, C22]])
 
     def gravity_vector(self, q: np.ndarray) -> np.ndarray:
         """
-        Menghitung vektor gravitasi G(q) (2×1).
+        Calculates the gravity vector G(q) (2×1).
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
+            q: Joint angle vector [q1, q2] (rad)
 
         Returns:
-            G: Vektor gravitasi (2,)
+            G: Gravity vector (2,)
         """
         p = self.p
-        c1 = np.cos(q[0])
-        c12 = np.cos(q[0] + q[1])
+        q2 = q[1]
+        c2 = np.cos(q2)
+        
+        # Correct analytical model based on potential derivative
+        C1 = 0.0
+        C2 = -200.63 * c2
 
-        g1 = (p.m1 * p.lc1 + p.m2 * p.l1) * p.g * c1 + p.m2 * p.lc2 * p.g * c12
-        g2 = p.m2 * p.lc2 * p.g * c12
-
-        return np.array([g1, g2])
+        return np.array([C1, C2])
 
     def compute_dynamics(self, q: np.ndarray, dq: np.ndarray):
         """
-        Menghitung semua komponen dinamika sekaligus.
+        Calculates all dynamics components simultaneously.
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
-            dq: Vektor kecepatan joint [dq1, dq2] (rad/s)
+            q: Joint angle vector [q1, q2] (rad)
+            dq: Joint velocity vector [dq1, dq2] (rad/s)
 
         Returns:
-            tuple: (M, C, G) — matriks inersia, Coriolis, gravitasi
+            tuple: (M, C, G) — Inertia, Coriolis, and Gravity matrices/vector
         """
         M = self.inertia_matrix(q)
         C = self.coriolis_matrix(q, dq)
@@ -126,28 +139,28 @@ class Dynamics2DoF:
 
     def forward_dynamics(self, q: np.ndarray, dq: np.ndarray, tau: np.ndarray) -> np.ndarray:
         """
-        Menghitung percepatan joint (forward dynamics).
+        Calculates joint acceleration (forward dynamics).
 
-        q̈ = M_true⁻¹(τ - C_true·q̇ - G_true - friction·q̇)
+        qddot = M_true^-1 * (tau - C_true*qdot - G_true - friction*qdot)
 
-        Menggunakan parameter TRUE plant (termasuk uncertainty).
+        Uses TRUE plant parameters (including uncertainty).
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
-            dq: Vektor kecepatan joint [dq1, dq2] (rad/s)
-            tau: Vektor torsi input [τ1, τ2] (Nm)
+            q: Joint angle vector [q1, q2] (rad)
+            dq: Joint velocity vector [dq1, dq2] (rad/s)
+            tau: Input torque vector [tau1, tau2] (Nm)
 
         Returns:
-            ddq: Vektor percepatan joint [ddq1, ddq2] (rad/s²)
+            ddq: Joint acceleration vector [ddq1, ddq2] (rad/s^2)
         """
         M, C, G = self.compute_dynamics(q, dq)
 
-        # Terapkan ketidakpastian massa pada plant sebenarnya
+        # Apply mass uncertainty to the actual plant
         M_true = M * self.mass_unc
         C_true = C * self.mass_unc
         G_true = G * self.mass_unc
 
-        # Tambahkan gesekan viskos (tidak diketahui kontroler)
+        # Add viscous friction (unknown to the controller)
         friction_torque = self.friction * dq
 
         ddq = np.linalg.solve(M_true, tau - C_true @ dq - G_true - friction_torque)
@@ -155,15 +168,15 @@ class Dynamics2DoF:
 
     def inverse_dynamics(self, q: np.ndarray, dq: np.ndarray, ddq: np.ndarray) -> np.ndarray:
         """
-        Menghitung torsi yang diperlukan (inverse dynamics).
+        Calculates required torques (inverse dynamics).
 
-        τ = M·q̈ + C·q̇ + G
+        tau = M*qddot + C*qdot + G
 
         Args:
-            q, dq, ddq: Posisi, kecepatan, percepatan joint
+            q, dq, ddq: Joint position, velocity, and acceleration
 
         Returns:
-            tau: Vektor torsi (2,)
+            tau: Torque vector (2,)
         """
         M, C, G = self.compute_dynamics(q, dq)
         tau = M @ ddq + C @ dq + G

@@ -152,7 +152,7 @@ BLOCK_DEFINITIONS = {
     },
     'plant': {
         'icon': draw_antenna_icon,
-        'title': 'Antena Parabola',
+        'title': 'Satellite Dish',
         'subtitle': '2-DoF Plant',
         'bg': Theme.BLOCK_PLANT,
         'border': Theme.BLOCK_PLANT_BORDER,

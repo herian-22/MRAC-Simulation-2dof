@@ -2,3 +2,6 @@ numpy
 scipy
 matplotlib
 PySide6
+cadquery
+pyvista
+pyvistaqt

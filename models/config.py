@@ -1,8 +1,8 @@
 """
-config.py — Konfigurasi Parameter Simulasi MRAC Satellite Dish 2-DoF
+config.py — Simulation Parameter Configuration for 2-DoF Satellite Dish MRAC
 
-Berisi dataclass SimConfig dan factory functions untuk iterasi parameter.
-Referensi: Soares et al. (2021) - Adaptive Controller for Automatic Maneuver
+Contains SimConfig dataclass and factory functions for parameter iteration.
+Reference: Soares et al. (2021) - Adaptive Controller for Automatic Maneuver
 """
 
 from dataclasses import dataclass, field
@@ -13,25 +13,22 @@ import itertools
 
 @dataclass
 class PhysicalParams:
-    """Parameter fisik antena parabola 2-DoF."""
+    """Physical parameters of the 2-DoF satellite antenna."""
     # --- Link 1 (Azimuth) ---
-    m1: float = 8.0          # Massa link 1 (kg)
-    l1: float = 0.40         # Panjang link 1 (m)
-    lc1: float = 0.20        # Jarak ke pusat massa link 1 (m)
-    I1: float = 0.10         # Momen inersia link 1 (kg·m²)
-
+    m1: float = 29.16        # Mass of link 1 (kg) - From Table 2 specs in paper
+    a1: float = 0.19         # Denavit-Hartenberg parameter a1 (m)
+    d1: float = 1.60         # Denavit-Hartenberg parameter d1 (m)
+    
     # --- Link 2 (Elevation) + Dish ---
-    m2: float = 12.0         # Massa link 2 + dish (kg)  — dish diam 1.6m
-    l2: float = 0.80         # Panjang efektif link 2 (m)  — radius dish
-    lc2: float = 0.40        # Jarak ke pusat massa link 2 (m)
-    I2: float = 0.80         # Momen inersia link 2 (kg·m²) — dish besar
+    m2: float = 97.39        # Mass of link 2 (kg) - From Table 2 specs in paper
+    a2: float = 0.97         # Denavit-Hartenberg parameter a2 (m)
 
-    g: float = 9.81          # Percepatan gravitasi (m/s²)
+    g: float = 9.81          # Gravitational acceleration (m/s²)
 
 
 @dataclass
 class ControllerParams:
-    """Parameter kontroler Computed Torque + MRAC."""
+    """Computed Torque + MRAC controller parameters."""
     # --- Computed Torque PD Gains ---
     Kp1: float = 100.0       # Proportional gain joint 1
     Kp2: float = 100.0       # Proportional gain joint 2
@@ -39,49 +36,49 @@ class ControllerParams:
     Kv2: float = 20.0        # Derivative gain joint 2
 
     # --- MRAC Adaptive Gains (MIT Rule) ---
-    gamma1: float = 770.0    # Gain adaptif joint 1 (range: 710-830)
-    gamma2: float = 935.0    # Gain adaptif joint 2 (range: 880-990)
+    gamma1: float = 750.0    # Adaptive gain joint 1
+    gamma2: float = 900.0    # Adaptive gain joint 2
 
     # --- MRAC adaptive parameter bounds ---
-    theta_max: float = 50.0  # Batas atas parameter adaptif
-    theta_min: float = -50.0 # Batas bawah parameter adaptif
+    theta_max: float = 50.0  # Upper bound of adaptive parameter
+    theta_min: float = -50.0 # Lower bound of adaptive parameter
 
 
 @dataclass
 class ReferenceModelParams:
-    """Parameter model referensi orde-2."""
+    """Second-order reference model parameters."""
     overshoot: float = 0.15  # Target overshoot 15%
-    peak_time: float = 1.8   # Target peak time 1.8 detik
+    peak_time: float = 1.8   # Target peak time 1.8 seconds
 
     @property
     def zeta(self) -> float:
-        """Damping ratio dari target overshoot."""
+        """Damping ratio derived from target overshoot."""
         ln_os = np.log(self.overshoot)
         return -ln_os / np.sqrt(np.pi**2 + ln_os**2)
 
     @property
     def omega_n(self) -> float:
-        """Natural frequency dari peak time dan damping ratio."""
+        """Natural frequency derived from peak time and damping ratio."""
         z = self.zeta
         return np.pi / (self.peak_time * np.sqrt(1 - z**2))
 
 
 @dataclass
 class SimulationParams:
-    """Parameter simulasi."""
-    t_start: float = 0.0     # Waktu mulai (s)
-    t_end: float = 10.0      # Waktu akhir (s)
+    """Simulation parameters."""
+    t_start: float = 0.0     # Start time (s)
+    t_end: float = 10.0      # End time (s)
     dt: float = 0.001        # Time step (s)
     method: str = 'RK45'     # ODE solver method
 
     # --- Trajectory ---
     trajectory_type: str = 'step'  # 'step', 'sinusoidal', 'multipoint'
 
-    # Target posisi untuk step response (rad)
-    q1_target: float = np.radians(45)   # Azimuth target
-    q2_target: float = np.radians(30)   # Elevation target
+    # Target position for step response (rad)
+    q1_target: float = np.radians(60)   # Target Azimuth (u1 = 60 deg)
+    q2_target: float = np.radians(30)   # Target Elevation (u2 = 30 deg)
 
-    # Parameter sinusoidal trajectory
+    # Sinusoidal trajectory parameters
     sin_amplitude: float = np.radians(30)
     sin_frequency: float = 0.5  # Hz
 
@@ -97,7 +94,7 @@ class SimulationParams:
 
 @dataclass
 class SimConfig:
-    """Konfigurasi lengkap untuk satu simulasi."""
+    """Complete configuration for a single simulation run."""
     physical: PhysicalParams = field(default_factory=PhysicalParams)
     controller: ControllerParams = field(default_factory=ControllerParams)
     reference: ReferenceModelParams = field(default_factory=ReferenceModelParams)
@@ -105,18 +102,18 @@ class SimConfig:
     label: str = "default"
 
     def summary_str(self) -> str:
-        """String ringkasan untuk penamaan file."""
+        """Summary string for file naming."""
         return (f"g1={self.controller.gamma1:.0f}_"
                 f"g2={self.controller.gamma2:.0f}_"
                 f"traj={self.simulation.trajectory_type}")
 
 
-# ═══════════════════════════════════════════════════════════════
-#  Factory Functions untuk Iterasi
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
+#  Factory Functions for Iteration
+# ===============================================================
 
 def default_config() -> SimConfig:
-    """Konfigurasi default sesuai PRD."""
+    """Default configuration according to PRD."""
     return SimConfig(label="default")
 
 
@@ -126,12 +123,12 @@ def sweep_gamma(
     n_steps: int = 5
 ) -> List[SimConfig]:
     """
-    Generate list konfigurasi dengan sweep γ₁ dan γ₂.
+    Generate a list of configurations with sweep of γ₁ and γ₂.
     """
     if gamma1_values is None:
-        gamma1_values = np.linspace(710, 830, n_steps).tolist()
+        gamma1_values = [200.0, 500.0, 750.0, 1000.0, 1500.0]
     if gamma2_values is None:
-        gamma2_values = np.linspace(880, 990, n_steps).tolist()
+        gamma2_values = [200.0, 500.0, 750.0, 1000.0, 1500.0]
 
     configs = []
     for g1, g2 in itertools.product(gamma1_values, gamma2_values):
@@ -147,7 +144,7 @@ def sweep_trajectory(
     trajectory_types: List[str] = None
 ) -> List[SimConfig]:
     """
-    Generate konfigurasi untuk setiap jenis trajektori.
+    Generate configurations for each trajectory type.
     """
     if trajectory_types is None:
         trajectory_types = ['step', 'sinusoidal', 'multipoint']
@@ -171,9 +168,9 @@ def full_sweep(
     Full parameter sweep: γ₁ × γ₂ × trajectory type.
     """
     if gamma1_values is None:
-        gamma1_values = np.linspace(710, 830, n_steps).tolist()
+        gamma1_values = [200.0, 500.0, 750.0, 1000.0, 1500.0]
     if gamma2_values is None:
-        gamma2_values = np.linspace(880, 990, n_steps).tolist()
+        gamma2_values = [200.0, 500.0, 750.0, 1000.0, 1500.0]
     if trajectory_types is None:
         trajectory_types = ['step', 'sinusoidal', 'multipoint']
 

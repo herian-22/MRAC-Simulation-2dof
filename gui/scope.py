@@ -33,7 +33,7 @@ class ScopePlotCanvas(FigureCanvas):
         ax.tick_params(colors=Theme.MPL_TICK)
         ax.xaxis.label.set_color(Theme.MPL_TEXT)
         ax.yaxis.label.set_color(Theme.MPL_TEXT)
-        ax.title.set_color(Theme.TEXT_PRIMARY)
+        ax.title.set_color(Theme.MPL_TEXT)
         ax.title.set_fontweight('bold')
         for spine in ax.spines.values():
             spine.set_color(Theme.BORDER)

@@ -1,10 +1,10 @@
 """
-kinematics.py — Kinematika Denavit-Hartenberg untuk 2-DoF Serial Manipulator
+kinematics.py — Denavit-Hartenberg Kinematics for 2-DoF Serial Manipulator
 
-Menggunakan notasi DH standar untuk memetakan sudut joint
-ke posisi end-effector (ujung antena parabola) dalam ruang 3D.
+Uses standard DH notation to map joint angles to end-effector position
+(the tip of the satellite dish) in 3D space.
 
-Referensi: Soares et al. (2021), Craig - Introduction to Robotics
+Reference: Soares et al. (2021), Craig - Introduction to Robotics
 """
 
 import numpy as np
@@ -13,8 +13,8 @@ from models.config import PhysicalParams
 
 class ForwardKinematics:
     """
-    Kinematika langsung menggunakan konvensi Denavit-Hartenberg
-    untuk manipulator serial 2-DoF (Azimuth + Elevation).
+    Forward kinematics using Denavit-Hartenberg convention
+    for a 2-DoF serial manipulator (Azimuth + Elevation).
     """
 
     def __init__(self, params: PhysicalParams = None):
@@ -25,16 +25,16 @@ class ForwardKinematics:
     @staticmethod
     def dh_transform(a: float, alpha: float, d: float, theta: float) -> np.ndarray:
         """
-        Membuat matriks transformasi homogen 4×4 dari parameter DH.
+        Creates a 4×4 homogeneous transformation matrix from DH parameters.
 
         Args:
-            a:     Panjang link (m)
-            alpha: Twist link (rad)
-            d:     Offset link (m)
-            theta: Sudut joint (rad)
+            a:     Link length (m)
+            alpha: Link twist (rad)
+            d:     Link offset (m)
+            theta: Joint angle (rad)
 
         Returns:
-            T: Matriks transformasi 4×4
+            T: 4×4 transformation matrix
         """
         ct = np.cos(theta)
         st = np.sin(theta)
@@ -50,46 +50,46 @@ class ForwardKinematics:
 
     def dh_table(self, q: np.ndarray) -> list:
         """
-        Tabel parameter DH untuk satellite dish 2-DoF.
+        DH parameter table for the 2-DoF satellite dish.
 
-        Joint 1 (Azimuth):  Rotasi di sumbu Z
-        Joint 2 (Elevation): Rotasi di sumbu Y → alpha = -π/2
+        Joint 1 (Azimuth):   Rotation around Z-axis
+        Joint 2 (Elevation): Rotation around Y-axis → alpha = -π/2 (or pi/2 depending on convention)
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
+            q: Joint angle vector [q1, q2] (rad)
 
         Returns:
-            list: [[a, alpha, d, theta], ...] untuk setiap link
+            list: [[a, alpha, d, theta], ...] for each link
         """
         p = self.p
         return [
             # [a,     alpha,       d,   theta]
-            [0,       -np.pi/2,  p.l1,  q[0]],   # Joint 1: Azimuth
-            [p.l2,    0,         0,     q[1]],    # Joint 2: Elevation
+            [p.a1,    np.pi/2,   p.d1,  q[0]],   # Joint 1: Azimuth (alpha = pi/2 so +theta2 rotates upward)
+            [p.a2,    0,         0,     q[1]],   # Joint 2: Elevation
         ]
 
     def forward(self, q: np.ndarray) -> np.ndarray:
         """
-        Menghitung posisi end-effector dalam ruang 3D.
+        Calculates the end-effector position in 3D space.
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
+            q: Joint angle vector [q1, q2] (rad)
 
         Returns:
-            pos: Posisi end-effector [x, y, z] (m)
+            pos: End-effector position [x, y, z] (m)
         """
         T = self.transform_matrix(q)
         return T[:3, 3]
 
     def transform_matrix(self, q: np.ndarray) -> np.ndarray:
         """
-        Menghitung matriks transformasi total T₀₂ (base → end-effector).
+        Calculates the total transformation matrix T02 (base → end-effector).
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
+            q: Joint angle vector [q1, q2] (rad)
 
         Returns:
-            T: Matriks transformasi homogen 4×4
+            T: 4×4 homogeneous transformation matrix
         """
         table = self.dh_table(q)
         T = np.eye(4)
@@ -99,14 +99,14 @@ class ForwardKinematics:
 
     def jacobian(self, q: np.ndarray, delta: float = 1e-6) -> np.ndarray:
         """
-        Menghitung Jacobian geometrik secara numerik (finite difference).
+        Calculates the geometric Jacobian numerically (finite difference).
 
         Args:
-            q: Vektor sudut joint [q1, q2] (rad)
-            delta: Perturbasi untuk finite difference
+            q: Joint angle vector [q1, q2] (rad)
+            delta: Perturbation for finite difference
 
         Returns:
-            J: Matriks Jacobian (3×2) — hanya posisi
+            J: Jacobian matrix (3×2) — position only
         """
         n = len(q)
         pos0 = self.forward(q)
@@ -122,13 +122,13 @@ class ForwardKinematics:
 
     def workspace_points(self, n_samples: int = 50) -> np.ndarray:
         """
-        Menghasilkan titik-titik workspace (reachable space) antena.
+        Generates workspace points (reachable space) for the antenna.
 
         Args:
-            n_samples: Jumlah sampel per joint
+            n_samples: Number of samples per joint
 
         Returns:
-            points: Array (N, 3) posisi end-effector
+            points: Array (N, 3) of end-effector positions
         """
         q1_range = np.linspace(-np.pi, np.pi, n_samples)
         q2_range = np.linspace(-np.pi/2, np.pi/2, n_samples)

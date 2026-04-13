@@ -141,17 +141,17 @@ class PropertiesPanel(QWidget):
             self._add_field("theta_min", "θ_min:", f"{cfg.controller.theta_min:.1f}")
 
         elif block_id == "plant":
-            self.header_label.setText("📡  Antena Parabola — 2-DoF Plant")
+            self.header_label.setText("📡  Satellite Dish — 2-DoF Plant")
             self._add_section("Link 1 (Azimuth Base)")
-            self._add_field("m1", "Massa m₁ (kg):", f"{cfg.physical.m1:.1f}")
-            self._add_field("l1", "Panjang l₁ (m):", f"{cfg.physical.l1:.2f}")
-            self._add_field("I1", "Inersia I₁ (kg·m²):", f"{cfg.physical.I1:.2f}")
+            self._add_field("m1", "Mass m₁ (kg):", f"{cfg.physical.m1:.1f}")
+            self._add_field("a1", "Parameter a₁ (m):", f"{cfg.physical.a1:.2f}")
+            self._add_field("d1", "Parameter d₁ (m):", f"{cfg.physical.d1:.2f}")
             self._add_section("Link 2 (Elevation + Dish 1.6m)")
-            self._add_field("m2", "Massa m₂ (kg):", f"{cfg.physical.m2:.1f}")
-            self._add_field("l2", "Panjang l₂ (m):", f"{cfg.physical.l2:.2f}")
-            self._add_field("I2", "Inersia I₂ (kg·m²):", f"{cfg.physical.I2:.2f}")
+            self._add_field("m2", "Mass m₂ (kg):", f"{cfg.physical.m2:.1f}")
+            self._add_field("a2", "Parameter a₂ (m):", f"{cfg.physical.a2:.2f}")
+            self._add_field("m2", "Mass m₂ (kg):", f"{cfg.physical.m2:.2f}")
             self._add_section("Environment")
-            self._add_field("g", "Gravitasi (m/s²):", f"{cfg.physical.g:.2f}")
+            self._add_field("g", "Gravity (m/s²):", f"{cfg.physical.g:.2f}")
 
         elif block_id == "mit":
             self.header_label.setText("🔄  MIT Rule — Adaptive Law")
@@ -211,11 +211,11 @@ class PropertiesPanel(QWidget):
 
             elif bid == "plant":
                 cfg.physical.m1 = float(self.fields['m1'].text())
-                cfg.physical.l1 = float(self.fields['l1'].text())
-                cfg.physical.I1 = float(self.fields['I1'].text())
+                cfg.physical.a1 = float(self.fields['a1'].text())
+                cfg.physical.d1 = float(self.fields['d1'].text())
                 cfg.physical.m2 = float(self.fields['m2'].text())
-                cfg.physical.l2 = float(self.fields['l2'].text())
-                cfg.physical.I2 = float(self.fields['I2'].text())
+                cfg.physical.a2 = float(self.fields['a2'].text())
+                cfg.physical.m2 = float(self.fields['m2'].text())
                 cfg.physical.g = float(self.fields['g'].text())
 
             self.params_changed.emit()
