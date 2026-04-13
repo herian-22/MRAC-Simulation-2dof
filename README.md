@@ -48,7 +48,7 @@ M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 
 ## 2) Fitur Utama Implementasi
 
-### engine simulasi
+### Engine Simulasi
 - Integrasi ODE penuh dengan `scipy.integrate.solve_ivp` (default `RK45`).
 - Simulasi tunggal dan batch (`run_simulation`, `run_batch`).
 - Pembatasan torsi aktuator (torque clipping) untuk menjaga realistis numerik.
@@ -58,7 +58,7 @@ M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 - **MRAC berbasis MIT Rule** untuk update parameter adaptif online.
 - Tracking terhadap **model referensi orde-2** (bukan hanya setpoint statis).
 
-### Jenis lintasan input
+### Jenis Lintasan Input
 - `step`
 - `sinusoidal`
 - `multipoint` (interpolasi spline)
@@ -175,14 +175,14 @@ flowchart TD
    `trajectory_generator()` menghasilkan \(q_d,\dot q_d,\ddot q_d\) berdasarkan mode `step/sinusoidal/multipoint`.
 
 2. **Reference model layer**  
-   Untuk tiap joint, `ReferenceModel.state_derivative()` mengupdate state \(x_m=[q_m,\dot q_m]\) dari input \(r=q_d\).
+   Untuk tiap joint, `ReferenceModel.state_derivative()` memperbarui state \(x_m=[q_m,\dot q_m]\) dari input \(r=q_d\).
 
 3. **Adaptive sensitivity layer**  
-   State filter \(\phi\) diupdate dari input \(q_i/\omega_n^2\), lalu sensitivitas yang dipakai adaptasi adalah \(\dot\phi_i\) (`phi_i[1]`).
+   State filter \(\phi\) diperbarui dari input \(q_i/\omega_n^2\), lalu sensitivitas yang dipakai adaptasi adalah \(\dot\phi_i\) (`phi_i[1]`).
 
 4. **Error and adaptation layer**  
    Error utama: \(e=q-q_m\).  
-   Parameter adaptif \(\alpha\) diupdate online dengan MIT Rule.
+   Parameter adaptif \(\alpha\) diperbarui online dengan MIT Rule.
 
 5. **Control synthesis layer**  
    Kontrol total = computed torque nominal (\(\tau_m\)) + kompensasi adaptif friksi (\(\tau_a\)).
