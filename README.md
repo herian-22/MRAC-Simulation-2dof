@@ -1,6 +1,6 @@
 # MRAC Simulation for 2-DOF Parabolic Antenna
 
-Simulasi ini memodelkan antena parabola 2-DOF (azimuth–elevation/slope) sebagai **robot manipulator serial** dan mengendalikan geraknya menggunakan kombinasi **Computed Torque + MRAC (MIT Rule)**.
+Simulasi ini memodelkan antena parabola 2-DOF (azimuth–elevation) sebagai sistem robotik 2-joint dan mengendalikan geraknya dengan kombinasi **Computed Torque + MRAC (MIT Rule)**.
 
 ## Preview
 
@@ -11,7 +11,6 @@ Simulasi ini memodelkan antena parabola 2-DOF (azimuth–elevation/slope) sebaga
 ![Hasil Tracking MRAC 2-DOF](assets/hasil_simulasi.png)
 
 Ringkasan metrik (konfigurasi default):
-
 - Steady-state error joint 1: **0.000002 rad**
 - Steady-state error joint 2: **0.000004 rad**
 - Overshoot joint 1: **14.30%**
@@ -23,91 +22,125 @@ Ringkasan metrik (konfigurasi default):
 
 ---
 
-## 1) Analogi Sistem: Antena sebagai Robot Manipulator Serial
+## 1) Sistem yang Dimodelkan
 
-### a. Kinematika (Denavit–Hartenberg / DH Notation)
-Antena 2-DOF diperlakukan seperti lengan robot serial 2 sendi:
-- **Joint 1**: Azimuth (rotasi horizontal)
-- **Joint 2**: Slope/Elevation (rotasi vertikal)
+### Antena sebagai manipulator serial 2-DOF
+- **Joint 1 (q1)**: azimuth (rotasi horizontal)
+- **Joint 2 (q2)**: elevation/slope (rotasi vertikal)
 
-Relasi posisi antar-link dalam ruang 3D dibangun dengan transformasi DH, sehingga posisi end-effector (arah pointing dish) dapat dihitung konsisten terhadap perubahan sudut kedua joint.
+### Kinematika (DH)
+Transformasi Denavit–Hartenberg digunakan untuk menghitung pose antar-link hingga titik ujung (arah pointing antena) dalam ruang 3D.
 
-### b. Dinamika (Euler–Lagrange)
-Gerak sistem tidak hanya ditentukan posisi, tapi juga:
-- massa dan inersia link,
-- kopling non-linear antar-joint,
-- efek Coriolis/sentrifugal,
-- gravitasi,
-- serta friksi viskos.
+### Dinamika (Euler–Lagrange)
+Persamaan gerak plant mempertimbangkan:
+- matriks inersia \(M(q)\),
+- efek Coriolis/sentrifugal \(C(q,\dot{q})\dot{q}\),
+- gravitasi \(G(q)\),
+- torsi disipatif/friksi viskos.
 
-Model dinamik dibentuk dari energi kinetik dan potensial melalui formulasi Lagrangian, sehingga persamaan gerak mengikuti bentuk umum:
-
+Bentuk umum model:
 \[
 M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 \]
 
 ---
 
-## 2) Strategi Kontrol: Linearitas & Adaptasi
+## 2) Fitur Utama Implementasi
 
-### a. Computed Torque Technique
-Karena dinamika bersifat non-linear dan saling terkopel, computed torque dipakai untuk mengompensasi bagian non-linear agar dinamika error mendekati sistem linear yang lebih mudah didesain.
+### Engine simulasi
+- Integrasi ODE penuh dengan `scipy.integrate.solve_ivp` (default `RK45`).
+- Simulasi tunggal dan batch (`run_simulation`, `run_batch`).
+- Pembatasan torsi aktuator (torque clipping) untuk menjaga realistis numerik.
 
-### b. Model Reference Adaptive Control (MRAC)
-Target kontrol bukan sekadar mencapai setpoint, tetapi membuat plant mengikuti **model referensi ideal orde-2**.
+### Strategi kontrol
+- **Computed Torque** untuk kompensasi nonlinier plant.
+- **MRAC berbasis MIT Rule** untuk update parameter adaptif online.
+- Tracking terhadap **model referensi orde-2** (bukan hanya setpoint statis).
 
-### c. Kompensasi Ketidakpastian
-Kontrol adaptif dibutuhkan untuk kondisi parameter tidak pasti/berubah (mis. friksi viskos dan variasi massa), sehingga performa tracking tetap robust terhadap mismatch model.
+### Jenis lintasan input
+- `step`
+- `sinusoidal`
+- `multipoint` (interpolasi spline)
 
----
+### Analitik dan metrik
+- SSE, peak error, overshoot, settling time 2%, RMS, ISE, max torque.
+- Logging sinyal penting: \(q\), \(\dot q\), \(q_m\), error, \(\tau\), parameter adaptif, end-effector, torsi friksi.
 
-## 3) Mekanisme “Otak” Kontroler (MIT Rule)
-
-### a. Online Estimation
-Parameter adaptif \(\alpha\) (di implementasi sebagai parameter \(\theta\)) diperbarui real-time sesuai error tracking.
-
-### b. Update Rule
-MIT Rule meminimalkan fungsi biaya:
-
-\[
-J(\alpha) = \frac{1}{2}e_o^2
-\]
-
-Dengan pembaruan gradien (arah menurunkan error) secara kontinu selama simulasi berjalan.
-
-### c. Adaptive Gain \(\gamma\)
-Nilai \(\gamma\) mengatur kecepatan belajar:
-- terlalu besar \(\rightarrow\) berisiko osilasi/instabil,
-- terlalu kecil \(\rightarrow\) adaptasi lambat.
-
----
-
-## 4) Evaluasi Performa Transien
-
-Model referensi orde-2 ditentukan dari:
-- **\(\zeta\)**: rasio redaman,
-- **\(\omega_n\)**: frekuensi alami.
-
-Target desain:
-- **Overshoot = 15%**
-- **Peak time = 1.8 s**
-
-Jika respons simulasi mendekati target ini, maka model matematis, desain kontrol, dan implementasi numerik dianggap sinkron dengan teori.
+### GUI interaktif (PySide6)
+- Blok diagram ala Simulink.
+- Panel parameter untuk plant, referensi, kontroler, dan simulasi.
+- 6 tab output:
+  1. Basic System Output
+  2. MRAC Performance Analysis
+  3. Adaptive Parameters
+  4. Optimization: Gain Variation
+  5. Metrics
+  6. 3D Dynamics
+- Visualisasi 3D gerak antena.
+- Export hasil ke PNG, CSV, dan TXT metrik.
 
 ---
 
-## 5) Alur Implementasi (Toolchain)
+## 3) Kelebihan Sistem
 
-1. **Modeling (CATIA V5)**  
-   Ekstraksi parameter fisik \((m, I, a, d)\) dari geometri mekanik.
+- **Model fisik lengkap**: kinematika + dinamika nonlinier + friksi.
+- **Tracking berbasis model referensi**: performa transien lebih terarah (sesuai spesifikasi desain).
+- **Tahan mismatch model**: adaptasi online membantu saat parameter plant tidak ideal.
+- **Eksperimen cepat**: parameter bisa diubah langsung dari GUI.
+- **Analisis komprehensif**: kurva, metrik numerik, sweep gain, dan visualisasi 3D tersedia dalam satu alur.
 
-2. **Mathematics (Maple 13)**  
-   Penurunan simbolik persamaan dinamik yang panjang/kompleks untuk meminimalkan kesalahan manual.
+---
 
-3. **Simulation (MATLAB/Simulink)**  
-   Verifikasi hukum kontrol sebelum implementasi hardware.
+## 4) Kenapa Sistem Ini Adaptif?
 
-> Repository ini menyediakan implementasi simulasi numerik ekuivalen berbasis Python (NumPy/SciPy) untuk analisis dan eksperimen MRAC 2-DOF.
+Sistem ini adaptif karena parameter kontrol **tidak tetap**, tetapi diperbarui selama simulasi berdasarkan error tracking:
+
+- Error utama: \(e = q - q_m\)
+- Parameter adaptif \(\alpha\) diperbarui kontinu via MIT Rule.
+- Laju adaptasi diatur gain \(\gamma\):
+  - \(\gamma\) terlalu besar → respons cepat tapi berpotensi osilatif.
+  - \(\gamma\) terlalu kecil → stabil tapi adaptasi lambat.
+
+Dengan mekanisme ini, kontroler bisa menyesuaikan aksi kontrol saat terjadi ketidakpastian (misalnya perubahan friksi/parameter efektif plant), sehingga tracking ke model referensi tetap terjaga.
+
+---
+
+## 5) Bagaimana Prosesnya (Alur Kerja End-to-End)
+
+1. **Tentukan konfigurasi simulasi**  
+   Input trajectory, parameter fisik plant, gain PD, gain adaptif \(\gamma\), dan parameter model referensi (\(\zeta, \omega_n\)).
+
+2. **Bangun sinyal referensi**  
+   Generator trajectory membuat \(q_d, \dot q_d, \ddot q_d\) sesuai mode input (step/sinusoidal/multipoint).
+
+3. **Jalankan model referensi**  
+   Dinamika referensi orde-2 menghasilkan lintasan target internal \(q_m, \dot q_m\).
+
+4. **Hitung error tracking**  
+   Error antara plant dan model referensi digunakan sebagai sinyal adaptasi dan koreksi kontrol.
+
+5. **Update parameter adaptif (MIT Rule)**  
+   \(\dot{\alpha}\) dihitung online dari error dan sinyal sensitivitas/filter.
+
+6. **Hitung torsi kontrol total**  
+   Torsi = computed torque (kompensasi nonlinier + PD tracking) + komponen adaptif.
+
+7. **Integrasi dinamika plant**  
+   ODE solver memperbarui state \(q, \dot q\) sepanjang horizon waktu.
+
+8. **Post-processing hasil**  
+   Sistem menghitung metrik performa, menampilkan plot/tab analisis, animasi 3D, dan opsional export data.
+
+---
+
+## 6) Konteks Toolchain Pengembangan
+
+Alur akademik/referensi metode:
+1. **Modeling (CATIA V5)**: ekstraksi parameter fisik \((m, I, a, d)\).
+2. **Mathematics (Maple 13)**: penurunan simbolik model dinamik.
+3. **Simulation (MATLAB/Simulink)**: verifikasi hukum kontrol.
+
+Repository ini menyediakan implementasi numerik ekuivalen berbasis **Python (NumPy/SciPy + GUI PySide6)** untuk eksperimen MRAC 2-DOF.
 
 ---
 
@@ -119,5 +152,5 @@ python test_all.py
 python run.py
 ```
 
-- `test_all.py` menjalankan pengujian model, kontroler, simulasi, dan import GUI.
-- `run.py` menjalankan GUI simulasi.
+- `test_all.py` menguji modul model, kontroler, simulasi, dan import GUI.
+- `run.py` menjalankan GUI simulasi utama.
