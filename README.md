@@ -25,7 +25,7 @@ Ringkasan metrik (konfigurasi default):
 
 ## 1) Sistem yang Dimodelkan
 
-### Antena sebagai manipulator serial 2-DOF
+### antena sebagai manipulator serial 2-DOF
 - **Joint 1 (q1)**: azimuth (rotasi horizontal)
 - **Joint 2 (q2)**: elevation/slope (rotasi vertikal)
 
@@ -48,7 +48,7 @@ M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) + F_v\dot{q} = \tau
 
 ## 2) Fitur Utama Implementasi
 
-### Engine simulasi
+### engine simulasi
 - Integrasi ODE penuh dengan `scipy.integrate.solve_ivp` (default `RK45`).
 - Simulasi tunggal dan batch (`run_simulation`, `run_batch`).
 - Pembatasan torsi aktuator (torque clipping) untuk menjaga realistis numerik.
