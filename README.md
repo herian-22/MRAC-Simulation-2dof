@@ -161,9 +161,11 @@ flowchart TD
     J --> K["Clip torque -500 sampai 500"]
     K --> L["Plant forward dynamics: ddq"]
     L --> M["Kembalikan dx ke solver"]
-    M --> N{"Waktu selesai?"}
-    N -- belum --> D
-    N -- ya --> O["Post-process: q_ref, error, tau, end-effector, friction, metrics"]
+    M --> N{"Waktu selesai"}
+    N --> NB["Belum"]
+    N --> NY["Ya"]
+    NB --> D
+    NY --> O["Post-process: q_ref, error, tau, end-effector, friction, metrics"]
     O --> P["SimResult"]
 ```
 
