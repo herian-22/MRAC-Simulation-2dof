@@ -149,22 +149,22 @@ Repository ini menyediakan implementasi numerik ekuivalen berbasis **Python (Num
 
 ```mermaid
 flowchart TD
-    A[Mulai: run_simulation(config)] --> B[Inisialisasi dynamics plant/controller, reference model, trajectory generator]
-    B --> C[Definisikan state gabungan x = q,dq,xm1,xm2,phi1,phi2,alpha]
-    C --> D[solve_ivp memanggil system_ode(t,x)]
-    D --> E[Hitung q_d dari trajectory_generator]
-    E --> F[Update model referensi: dxm1, dxm2]
-    F --> G[Update filter sensitivitas: dphi1, dphi2]
-    G --> H[Hitung error: e = q - qm]
-    H --> I[Adaptasi MIT Rule: dalpha]
-    I --> J[Hitung torque kontrol: tau = tau_m + tau_a]
-    J --> K[Clip torque -500 sampai 500]
-    K --> L[Plant forward dynamics: ddq]
-    L --> M[Kembalikan dx ke solver]
-    M --> N{Waktu selesai?}
+    A["Mulai: run_simulation(config)"] --> B["Inisialisasi dynamics plant/controller, reference model, trajectory generator"]
+    B --> C["Definisikan state gabungan x = q,dq,xm1,xm2,phi1,phi2,alpha"]
+    C --> D["solve_ivp memanggil system_ode(t,x)"]
+    D --> E["Hitung q_d dari trajectory_generator"]
+    E --> F["Update model referensi: dxm1, dxm2"]
+    F --> G["Update filter sensitivitas: dphi1, dphi2"]
+    G --> H["Hitung error: e = q - qm"]
+    H --> I["Adaptasi MIT Rule: dalpha"]
+    I --> J["Hitung torque kontrol: tau = tau_m + tau_a"]
+    J --> K["Clip torque -500 sampai 500"]
+    K --> L["Plant forward dynamics: ddq"]
+    L --> M["Kembalikan dx ke solver"]
+    M --> N{"Waktu selesai?"}
     N -- belum --> D
-    N -- ya --> O[Post-process: q_ref, error, tau, end-effector, friction, metrics]
-    O --> P[SimResult]
+    N -- ya --> O["Post-process: q_ref, error, tau, end-effector, friction, metrics"]
+    O --> P["SimResult"]
 ```
 
 ---
