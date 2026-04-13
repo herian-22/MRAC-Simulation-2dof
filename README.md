@@ -229,6 +229,9 @@ B_m=\begin{bmatrix}0\\\omega_n^2\end{bmatrix}
 
 Komponen percepatan referensi yang dipakai kontrol (`compute_full_torque`):
 \[
+u_{ref} \equiv r
+\]
+\[
 \ddot q_{m,i}=\omega_n^2\,u_{ref,i}-2\zeta\omega_n\,\dot q_{m,i}-\omega_n^2\,q_{m,i}
 \]
 
