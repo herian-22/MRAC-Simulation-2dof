@@ -11,6 +11,7 @@ Simulasi ini memodelkan antena parabola 2-DOF (azimuth–elevation) sebagai sist
 ![Hasil Tracking MRAC 2-DOF](assets/hasil_simulasi.png)
 
 Ringkasan metrik (konfigurasi default):
+
 - Steady-state error joint 1: **0.000002 rad**
 - Steady-state error joint 2: **0.000004 rad**
 - Overshoot joint 1: **14.30%**
