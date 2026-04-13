@@ -162,10 +162,8 @@ flowchart TD
     K --> L["Plant forward dynamics: ddq"]
     L --> M["Kembalikan dx ke solver"]
     M --> N{"Waktu selesai"}
-    N --> NB["Belum"]
-    N --> NY["Ya"]
-    NB --> D
-    NY --> O["Post-process: q_ref, error, tau, end-effector, friction, metrics"]
+    N -- Belum --> D
+    N -- Ya --> O["Post-process: q_ref, error, tau, end-effector, friction, metrics"]
     O --> P["SimResult"]
 ```
 
