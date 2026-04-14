@@ -6,58 +6,58 @@ Centralized design tokens for consistent dark-mode styling.
 
 
 class Theme:
-    """Centralized dark theme colors inspired by Simulink/MATLAB."""
+    """Centralized light theme colors inspired by MATLAB/Simulink."""
     # Base backgrounds
-    BG_DARKEST = "#0d1117"
-    BG_DARK = "#161b22"
-    BG_MID = "#1c2333"
-    BG_LIGHT = "#21262d"
-    BG_CANVAS = "#131a27"
+    BG_DARKEST = "#F2F2F7" # System light gray
+    BG_DARK = "#FFFFFF"    # Pure white
+    BG_MID = "#E5E5EA"     # Mid gray
+    BG_LIGHT = "#FFFFFF"   # Bright white
+    BG_CANVAS = "#FFFFFF"  # Pure white canvas
 
     # Borders
-    BORDER = "#30363d"
-    BORDER_LIGHT = "#3d444d"
+    BORDER = "#C7C7CC"     # Standard light border
+    BORDER_LIGHT = "#D1D1D6"
 
     # Text
-    TEXT_PRIMARY = "#e6edf3"
-    TEXT_SECONDARY = "#8b949e"
-    TEXT_MUTED = "#6e7681"
+    TEXT_PRIMARY = "#1C1C1E"   # Nearly black
+    TEXT_SECONDARY = "#3A3A3C" # Dark gray
+    TEXT_MUTED = "#8E8E93"    # Gray
 
-    # Accent colors
-    BLUE = "#58a6ff"
-    BLUE_DIM = "#1f6feb"
-    GREEN = "#3fb950"
-    GREEN_DIM = "#238636"
-    ORANGE = "#f0883e"
-    RED = "#f85149"
-    PURPLE = "#bc8cff"
-    CYAN = "#76e3ea"
-    YELLOW = "#e3b341"
+    # Accent colors (slightly more professional for light mode)
+    BLUE = "#007AFF"
+    BLUE_DIM = "#0051D5"
+    GREEN = "#34C759"
+    GREEN_DIM = "#248A3D"
+    ORANGE = "#FF9500"
+    RED = "#FF3B30"
+    PURPLE = "#AF52DE"
+    CYAN = "#32ADE6"
+    YELLOW = "#FFCC00"
 
-    # Block-specific colors
-    BLOCK_INPUT = "#1a3a5c"
-    BLOCK_INPUT_BORDER = "#58a6ff"
-    BLOCK_REF = "#1a3c2e"
-    BLOCK_REF_BORDER = "#3fb950"
-    BLOCK_CTRL = "#3a2a1a"
-    BLOCK_CTRL_BORDER = "#f0883e"
-    BLOCK_PLANT = "#2a1a3a"
-    BLOCK_PLANT_BORDER = "#bc8cff"
-    BLOCK_ADAPT = "#3a1a2a"
-    BLOCK_ADAPT_BORDER = "#f85149"
-    BLOCK_SCOPE = "#1a2a3a"
-    BLOCK_SCOPE_BORDER = "#76e3ea"
+    # Block-specific colors (Light mode friendly)
+    BLOCK_INPUT = "#FFFFFF"
+    BLOCK_INPUT_BORDER = "#007AFF"
+    BLOCK_REF = "#FFFFFF"
+    BLOCK_REF_BORDER = "#34C759"
+    BLOCK_CTRL = "#FFFFFF"
+    BLOCK_CTRL_BORDER = "#FF9500"
+    BLOCK_PLANT = "#FFFFFF"
+    BLOCK_PLANT_BORDER = "#AF52DE"
+    BLOCK_ADAPT = "#FFFFFF"
+    BLOCK_ADAPT_BORDER = "#FF3B30"
+    BLOCK_SCOPE = "#FFFFFF"
+    BLOCK_SCOPE_BORDER = "#32ADE6"
 
-    # Matplotlib colors
-    MPL_BG = "#ffffff"
-    MPL_AXES = "#ffffff"
-    MPL_GRID = "#e6e6e6"
-    MPL_TEXT = "#111111"
-    MPL_TICK = "#333333"
+    # Matplotlib colors (consistent with light theme)
+    MPL_BG = "#FFFFFF"
+    MPL_AXES = "#FFFFFF"
+    MPL_GRID = "#E5E5EA"
+    MPL_TEXT = "#1C1C1E"
+    MPL_TICK = "#3A3A3C"
 
 
 def build_stylesheet() -> str:
-    """Generate the full QSS stylesheet."""
+    """Generate the full QSS stylesheet for Light Mode."""
     T = Theme
     return f"""
 QMainWindow {{
@@ -86,74 +86,62 @@ QPushButton {{
     border: 1px solid {T.BORDER};
     border-radius: 6px;
     padding: 8px 18px;
-    font-weight: 600;
+    font-weight: 500;
     font-size: 13px;
 }}
 QPushButton:hover {{
-    background-color: {T.BORDER};
-    border-color: {T.BORDER_LIGHT};
+    background-color: {T.BG_MID};
+    border-color: {T.BORDER};
 }}
 QPushButton:pressed {{
-    background-color: {T.BG_MID};
+    background-color: {T.BORDER};
 }}
 QPushButton:disabled {{
-    background-color: {T.BG_DARK};
+    background-color: {T.BG_DARKEST};
     color: {T.TEXT_MUTED};
-    border-color: {T.BG_LIGHT};
+    border-color: {T.BORDER_LIGHT};
 }}
 QPushButton#runBtn {{
-    background-color: {T.GREEN_DIM};
-    border-color: {T.GREEN};
+    background-color: {T.GREEN};
+    border-color: {T.GREEN_DIM};
     color: white;
 }}
 QPushButton#runBtn:hover {{
-    background-color: {T.GREEN};
-}}
-QPushButton#runBtn:disabled {{
-    background-color: {T.BG_LIGHT};
-    border-color: {T.BORDER};
-    color: {T.TEXT_MUTED};
+    background-color: {T.GREEN_DIM};
 }}
 QPushButton#exportBtn {{
-    background-color: {T.BLUE_DIM};
-    border-color: {T.BLUE};
+    background-color: {T.BLUE};
+    border-color: {T.BLUE_DIM};
     color: white;
 }}
 QPushButton#exportBtn:hover {{
-    background-color: {T.BLUE};
+    background-color: {T.BLUE_DIM};
 }}
 QLineEdit {{
-    background-color: {T.BG_MID};
+    background-color: white;
     color: {T.TEXT_PRIMARY};
     border: 1px solid {T.BORDER};
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 13px;
-    selection-background-color: {T.BLUE_DIM};
 }}
 QLineEdit:focus {{
     border-color: {T.BLUE};
 }}
 QComboBox {{
-    background-color: {T.BG_MID};
+    background-color: white;
     color: {T.TEXT_PRIMARY};
     border: 1px solid {T.BORDER};
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 13px;
 }}
-QComboBox:hover {{
-    border-color: {T.BLUE};
-}}
-QComboBox::drop-down {{
-    border: none;
-    padding-right: 8px;
-}}
 QComboBox QAbstractItemView {{
-    background-color: {T.BG_MID};
+    background-color: white;
     color: {T.TEXT_PRIMARY};
     border: 1px solid {T.BORDER};
-    selection-background-color: {T.BLUE_DIM};
+    selection-background-color: {T.BLUE};
+    selection-color: white;
 }}
 QGroupBox {{
     background-color: {T.BG_DARK};
@@ -162,14 +150,12 @@ QGroupBox {{
     margin-top: 14px;
     padding: 16px 12px 12px 12px;
     font-weight: bold;
-    font-size: 13px;
 }}
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 2px 12px;
     color: {T.BLUE};
-    font-size: 13px;
 }}
 QTabWidget::pane {{
     background-color: {T.BG_DARK};
@@ -177,76 +163,51 @@ QTabWidget::pane {{
     border-radius: 0 0 8px 8px;
 }}
 QTabBar::tab {{
-    background-color: {T.BG_LIGHT};
+    background-color: {T.BG_MID};
     color: {T.TEXT_SECONDARY};
     border: 1px solid {T.BORDER};
     border-bottom: none;
     padding: 8px 16px;
     margin-right: 2px;
     border-radius: 6px 6px 0 0;
-    font-size: 12px;
-    font-weight: 500;
 }}
 QTabBar::tab:selected {{
     background-color: {T.BG_DARK};
     color: {T.BLUE};
     border-bottom: 2px solid {T.BLUE};
-    font-weight: 700;
-}}
-QTabBar::tab:hover:!selected {{
-    background-color: {T.BG_MID};
-    color: {T.TEXT_PRIMARY};
+    font-weight: bold;
 }}
 QSplitter::handle {{
     background-color: {T.BORDER};
 }}
-QSplitter::handle:horizontal {{
-    width: 2px;
-}}
-QSplitter::handle:vertical {{
-    height: 2px;
-}}
 QProgressBar {{
-    background-color: {T.BG_LIGHT};
+    background-color: {T.BG_MID};
     border: 1px solid {T.BORDER};
     border-radius: 4px;
     text-align: center;
     color: {T.TEXT_PRIMARY};
-    font-size: 11px;
     height: 20px;
 }}
 QProgressBar::chunk {{
     background-color: {T.BLUE};
-    border-radius: 3px;
 }}
 QStatusBar {{
     background-color: {T.BG_DARK};
     color: {T.TEXT_SECONDARY};
     border-top: 1px solid {T.BORDER};
     font-size: 12px;
-    padding: 2px 8px;
 }}
 QTableWidget {{
-    background-color: {T.BG_DARK};
+    background-color: white;
     color: {T.TEXT_PRIMARY};
-    gridline-color: {T.BORDER};
+    gridline-color: {T.BORDER_LIGHT};
     border: 1px solid {T.BORDER};
-    border-radius: 6px;
-    font-size: 12px;
 }}
-QTableWidget::item {{
-    padding: 4px 8px;
-}}
-QTableWidget::item:selected {{
-    background-color: {T.BLUE_DIM};
-}}
-QHeaderView::section {{
-    background-color: {T.BG_LIGHT};
+QTableWidget QHeaderView::section {{
+    background-color: {T.BG_DARKEST};
     color: {T.TEXT_PRIMARY};
     border: 1px solid {T.BORDER};
-    padding: 6px;
-    font-weight: bold;
-    font-size: 12px;
+    padding: 4px;
 }}
 QScrollArea {{
     border: none;
@@ -255,7 +216,7 @@ QScrollArea {{
 QGraphicsView {{
     background-color: {T.BG_CANVAS};
     border: 1px solid {T.BORDER};
-    border-radius: 8px;
+    border-radius: 6px;
 }}
 QLabel#sectionTitle {{
     color: {T.BLUE};

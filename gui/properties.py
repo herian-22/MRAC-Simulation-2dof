@@ -53,7 +53,7 @@ class PropertiesPanel(QWidget):
         self.main_layout.addWidget(scroll, 1)
 
         # Apply button
-        self.update_btn = QPushButton("💾  Apply Parameters")
+        self.update_btn = QPushButton(" Apply Parameters")
         self.update_btn.clicked.connect(self._apply_params)
         self.main_layout.addWidget(self.update_btn)
 
@@ -97,7 +97,7 @@ class PropertiesPanel(QWidget):
         cfg = self.config
 
         if block_id == "input":
-            self.header_label.setText("📶  Step Input — Setpoint")
+            self.header_label.setText(" Step Input — Setpoint")
             self._add_section("Trajectory")
             self._add_combo("traj_type", "Type:",
                           ["step", "sinusoidal", "multipoint"],
@@ -125,7 +125,7 @@ class PropertiesPanel(QWidget):
                           f"{cfg.reference.peak_time:.1f}")
 
         elif block_id == "mrac":
-            self.header_label.setText("⚙️  MRAC Controller")
+            self.header_label.setText("MRAC Controller")
             self._add_section("Computed Torque (PD Gains)")
             self._add_field("Kp1", "Kp₁ (Azimuth):", f"{cfg.controller.Kp1:.1f}")
             self._add_field("Kp2", "Kp₂ (Elevation):", f"{cfg.controller.Kp2:.1f}")
@@ -149,12 +149,11 @@ class PropertiesPanel(QWidget):
             self._add_section("Link 2 (Elevation + Dish 1.6m)")
             self._add_field("m2", "Mass m₂ (kg):", f"{cfg.physical.m2:.1f}")
             self._add_field("a2", "Parameter a₂ (m):", f"{cfg.physical.a2:.2f}")
-            self._add_field("m2", "Mass m₂ (kg):", f"{cfg.physical.m2:.2f}")
             self._add_section("Environment")
             self._add_field("g", "Gravity (m/s²):", f"{cfg.physical.g:.2f}")
 
         elif block_id == "mit":
-            self.header_label.setText("🔄  MIT Rule — Adaptive Law")
+            self.header_label.setText(" MIT Rule — Adaptive Law")
             self._add_section("Algorithm")
             self._add_readonly("Update law:", "dθ/dt = −γ · e · φ(t)")
             self._add_readonly("Params/joint:", "3 (θ_r, θ_q, θ_dq)")
@@ -163,7 +162,7 @@ class PropertiesPanel(QWidget):
             self._add_field("gamma2", "γ₂ (Elevation):", f"{cfg.controller.gamma2:.1f}")
 
         elif block_id == "scope":
-            self.header_label.setText("📊  Scope — Output Display")
+            self.header_label.setText("Scope — Output Display")
             self._add_section("Information")
             self._add_readonly("Status:", "Press ▶ Run to view plots")
             self._add_readonly("Available:", "7 scope tabs")
@@ -215,7 +214,6 @@ class PropertiesPanel(QWidget):
                 cfg.physical.d1 = float(self.fields['d1'].text())
                 cfg.physical.m2 = float(self.fields['m2'].text())
                 cfg.physical.a2 = float(self.fields['a2'].text())
-                cfg.physical.m2 = float(self.fields['m2'].text())
                 cfg.physical.g = float(self.fields['g'].text())
 
             self.params_changed.emit()

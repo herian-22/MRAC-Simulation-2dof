@@ -53,3 +53,19 @@ mrac_results/
 # Windows specific
 Thumbs.db
 Desktop.ini
+
+# LaTeX & Extraction temp files
+*.aux
+*.out
+*.toc
+jurnal_fig_*.jpeg
+jurnal_fig_*.png
+extract_imgs.py
+installer.iss
+laporan_validasi_step.fdb_latexmk
+laporan_validasi_step.fls
+laporan_validasi_step.synctex.gz
+laporan_validasi_step.tex
+pdf_text.md
+test_vtk.py
+output

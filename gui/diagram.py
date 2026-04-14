@@ -41,9 +41,9 @@ class BlockDiagramView(QGraphicsView):
         """Construct the block diagram with blocks, arrows, and labels."""
         bw = SimulinkBlock.BLOCK_WIDTH
         bh = SimulinkBlock.BLOCK_HEIGHT
-        gap = 55
-        y_main = 60
-        x_start = 40
+        gap = 60
+        y_main = 80
+        x_start = 50
 
         x1 = x_start
         x2 = x1 + bw + gap
@@ -51,7 +51,7 @@ class BlockDiagramView(QGraphicsView):
         x4 = x3 + bw + gap
         x5 = x4 + bw + gap
 
-        y_fb = y_main + bh + 70  # feedback row
+        y_fb = y_main + bh + 90  # feedback row
 
         # ═══ BLOCKS ═══
         for bid, x, y in [
@@ -68,10 +68,10 @@ class BlockDiagramView(QGraphicsView):
 
         # ═══ FORWARD ARROWS ═══
         pairs = [
-            ('input', 'ref',   Theme.BLUE),
-            ('ref',   'mrac',  Theme.GREEN),
-            ('mrac',  'plant', Theme.ORANGE),
-            ('plant', 'scope', Theme.PURPLE),
+            ('input', 'ref',   "#000000"),
+            ('ref',   'mrac',  "#000000"),
+            ('mrac',  'plant', "#000000"),
+            ('plant', 'scope', "#000000"),
         ]
         for src_id, dst_id, color in pairs:
             s = self.blocks[src_id]
@@ -92,25 +92,25 @@ class BlockDiagramView(QGraphicsView):
             (plant.center_x, plant.bottom_y),
             (plant.center_x, mit.center_y),
             (mit.right_x, mit.center_y),
-        ], Theme.RED)
+        ], "#000000")
         self.feedback_arrows.append(fb1)
 
         # MIT Rule → MRAC (adaptive signal)
         fb2 = FeedbackArrow([
             (mit.left_x, mit.center_y),
-            (mrac.left_x - 20, mit.center_y),
-            (mrac.left_x - 20, mrac.center_y + 15),
-            (mrac.left_x, mrac.center_y + 15),
-        ], Theme.YELLOW)
+            (mrac.left_x - 30, mit.center_y),
+            (mrac.left_x - 30, mrac.center_y + 20),
+            (mrac.left_x, mrac.center_y + 20),
+        ], "#000000")
         self.feedback_arrows.append(fb2)
 
         # Reference → MIT Rule (error signal)
         fb3 = FeedbackArrow([
             (ref.center_x, ref.bottom_y),
-            (ref.center_x, mit.bottom_y + 30),
-            (mit.center_x, mit.bottom_y + 30),
+            (ref.center_x, mit.bottom_y + 40),
+            (mit.center_x, mit.bottom_y + 40),
             (mit.center_x, mit.bottom_y),
-        ], Theme.CYAN)
+        ], "#000000")
         self.feedback_arrows.append(fb3)
 
         for fb in self.feedback_arrows:
@@ -119,18 +119,18 @@ class BlockDiagramView(QGraphicsView):
         # ═══ SIGNAL LABELS ═══
         cy = y_main + bh / 2
         labels = [
-            (x1 + bw + gap / 2 - 10, cy - 22, "r(t)"),
-            (x2 + bw + gap / 2 - 18, cy - 22, "qm(t)"),
-            (x3 + bw + gap / 2 - 10, cy - 22, "τ(t)"),
-            (x4 + bw + gap / 2 - 12, cy - 22, "q(t)"),
-            (plant.center_x + 6, (plant.bottom_y + mit.center_y) / 2 - 8, "q, dq"),
-            (mrac.left_x - 45, mit.center_y - 18, "τ_a"),
-            (ref.center_x + 6, mit.bottom_y + 12, "e(t)"),
+            (x1 + bw + gap / 2 - 12, cy - 25, "r(t)"),
+            (x2 + bw + gap / 2 - 20, cy - 25, "qm(t)"),
+            (x3 + bw + gap / 2 - 12, cy - 25, "u(t)"),
+            (x4 + bw + gap / 2 - 14, cy - 25, "q(t)"),
+            (plant.center_x + 8, (plant.bottom_y + mit.center_y) / 2 - 10, "q, dq"),
+            (mrac.left_x - 55, mit.center_y - 20, "θ"),
+            (ref.center_x + 8, mit.bottom_y + 15, "e(t)"),
         ]
         for lx, ly, txt in labels:
             lbl = QGraphicsTextItem(txt)
-            lbl.setDefaultTextColor(QColor(Theme.TEXT_MUTED))
-            lbl.setFont(QFont("Segoe UI", 9))
+            lbl.setDefaultTextColor(QColor(Theme.TEXT_SECONDARY))
+            lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
             lbl.setPos(lx, ly)
             self._scene.addItem(lbl)
 
