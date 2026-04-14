@@ -222,7 +222,7 @@ flowchart TD
 
 ### a) Model referensi orde-2 (`models/reference_model.py`)
 
-<p align="center"><img src="http://latex.codecogs.com/gif.latex?%5Cdpi%7B110%7D%5Cbg_white%20%5Cdot%7B%7Bx%7D%7D_m%20%3D%20A_m%20x_m%20%2B%20B_m%20r%2C%20%5Cquad%20A_m%3D%5Cbegin%7B%7Bbmatrix%7D%7D0%261%5C%5C-%5Comega_n%5E2%26-2%5Czeta%5Comega_n%5Cend%7B%7Bbmatrix%7D%7D%2C%5C%3B%20B_m%3D%5Cbegin%7B%7Bbmatrix%7D%7D0%5C%5C%5Comega_n%5E2%5Cend%7B%7Bbmatrix%7D%7D" alt="formula"/></p>
+<p align="center"><img src="http://latex.codecogs.com/gif.latex?%5Cdpi%7B110%7D%5Cbg_white%20%5Cdot%7B%7Bx%7D%7D_m%20%3D%20A_m%20x_m%20%2B%20B_m%20r%2C%20%5Cquad%20A_m%3D%5Cbegin%7Bbmatrix%7D0%261%5C%5C-%5Comega_n%5E2%26-2%5Czeta%5Comega_n%5Cend%7Bbmatrix%7D%2C%5C%3B%20B_m%3D%5Cbegin%7Bbmatrix%7D0%5C%5C%5Comega_n%5E2%5Cend%7Bbmatrix%7D" alt="formula"/></p>
 
 
 Komponen percepatan referensi yang dipakai kontrol (`compute_full_torque`):
@@ -252,7 +252,7 @@ Sinyal bantu:
 
 Komponen torsi:
 
-<p align="center"><img src="http://latex.codecogs.com/gif.latex?%5Cdpi%7B110%7D%5Cbg_white%20%5Ctau_m%3DM%28q%29%5C%2Cv%2BC%28q%2C%5Cdot%7B%7Bq%7D%7D%29%5Cdot%7B%7Bq%7D%7D%2BG%28q%29%2C%5Cqquad%20%5Ctau_a%3D%5Cbegin%7B%7Bbmatrix%7D%7D%5Calpha_1%5Cdot%7B%7Bq%7D%7D_1%5C%5C%5Calpha_2%5Cdot%7B%7Bq%7D%7D_2%5Cend%7B%7Bbmatrix%7D%7D" alt="formula"/></p>
+<p align="center"><img src="http://latex.codecogs.com/gif.latex?%5Cdpi%7B110%7D%5Cbg_white%20%5Ctau_m%3DM%28q%29%5C%2Cv%2BC%28q%2C%5Cdot%7B%7Bq%7D%7D%29%5Cdot%7B%7Bq%7D%7D%2BG%28q%29%2C%5Cqquad%20%5Ctau_a%3D%5Cbegin%7Bbmatrix%7D%5Calpha_1%5Cdot%7B%7Bq%7D%7D_1%5C%5C%5Calpha_2%5Cdot%7B%7Bq%7D%7D_2%5Cend%7Bbmatrix%7D" alt="formula"/></p>
 
 
 Torsi total:
