@@ -24,7 +24,7 @@ from gui.theme import Theme
 BLOCK_DEFINITIONS = {
     'input': {
         'formula': '<div style="font-size:14px; font-weight:bold;">r(t)</div>',
-        'title': 'Step Input',
+        'title': 'Input',
     },
     'ref': {
         'formula': '<div style="font-size:11px;">G<sub>m</sub>(s) = ω<sub>n</sub>² / (s² + 2ζω<sub>n</sub>s + ω<sub>n</sub>²)</div>',

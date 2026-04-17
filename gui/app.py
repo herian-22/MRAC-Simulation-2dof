@@ -532,26 +532,21 @@ class SimulinkGUI(QMainWindow):
         ax2.set_ylabel("Z Height (m)")
         self._legend(ax2, loc='lower right')
 
-        # === FINAL VALUES TABLE OUTSIDE PLOT ===
+        # === FINAL VALUES TABLE INSIDE PLOT ===
         text_table = (
-            f"  FINAL STEADY-STATE VALUES\n"
-            f"────────────────────────────────\n"
-            f" Azimuth (q₁)   : {np.degrees(q1):>7.2f}°\n"
-            f" Elevation (q₂) : {np.degrees(q2):>7.2f}°\n"
-            f" Translation X  : {P3[0]:>7.3f} m\n"
-            f" Translation Y  : {P3[1]:>7.3f} m\n"
-            f" Translation Z  : {P3[2]:>7.3f} m\n"
-            f" Total Distance : {np.linalg.norm(P3):>7.3f} m"
+            f"q₁={np.degrees(q1):.2f}°  q₂={np.degrees(q2):.2f}°\n"
+            f"X={P3[0]:.3f}  Y={P3[1]:.3f}  Z={P3[2]:.3f} m\n"
+            f"Distance={np.linalg.norm(P3):.3f} m"
         )
-        props = dict(boxstyle='round,pad=0.5', facecolor='#f8f9fa', alpha=0.9, edgecolor='#bdc3c7')
-        ax2.text(1.05, 0.96, text_table, transform=ax2.transAxes, fontsize=8,
-                 verticalalignment='top', bbox=props, family='monospace')
+        props = dict(boxstyle='round,pad=0.4', facecolor='#f8f9fa', alpha=0.9, edgecolor='#bdc3c7')
+        ax2.text(0.02, 0.02, text_table, transform=ax2.transAxes, fontsize=7,
+                 verticalalignment='bottom', horizontalalignment='left',
+                 bbox=props, family='monospace')
 
         c.fig.suptitle('Geometric Transformation Schematic (Vectors & Coordinate Frames)', 
-                       fontsize=9, fontweight='bold', color=Theme.MPL_TEXT, y=0.95)
+                       fontsize=9, fontweight='bold', color=Theme.MPL_TEXT, y=1.0)
         try:
-            # Leave empty space on the right (20% of width) to display the table outside
-            c.fig.tight_layout(rect=[0, 0, 1.1, 1])
+            c.fig.tight_layout()
         except Exception:
             pass
         c.draw()
