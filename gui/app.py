@@ -179,7 +179,7 @@ class SimulinkGUI(QMainWindow):
         self.visualizer_3d = RobotArmVisualizer()
         viz_layout.addWidget(self.visualizer_3d)
 
-        # --- Tab 2-7: Scopes ---
+        # --- Tab 2-7: Scopes (wrapped in QScrollArea for scrolling) ---
         self.canvas_output = ScopePlotCanvas()
         self.canvas_mrac = ScopePlotCanvas()
         self.canvas_adaptive = ScopePlotCanvas()
@@ -188,11 +188,11 @@ class SimulinkGUI(QMainWindow):
         self.metrics_table = MetricsTable()
 
         self.scope_tabs.addTab(viz_frame, "3D Visualizer Simulation")
-        self.scope_tabs.addTab(self.canvas_output,   "Basic System Output")
-        self.scope_tabs.addTab(self.canvas_mrac,     "MRAC Performance Analysis")
-        self.scope_tabs.addTab(self.canvas_adaptive, "Adaptive Parameters")
-        self.scope_tabs.addTab(self.canvas_gain_var, "Optimization: Gain Variation")
-        self.scope_tabs.addTab(self.canvas_cartesian,"Cartesian (Z, Y, X)")
+        self.scope_tabs.addTab(self.canvas_output.wrap_in_scroll_area(),   "Basic System Output")
+        self.scope_tabs.addTab(self.canvas_mrac.wrap_in_scroll_area(),     "MRAC Performance Analysis")
+        self.scope_tabs.addTab(self.canvas_adaptive.wrap_in_scroll_area(), "Adaptive Parameters")
+        self.scope_tabs.addTab(self.canvas_gain_var.wrap_in_scroll_area(), "Optimization: Gain Variation")
+        self.scope_tabs.addTab(self.canvas_cartesian.wrap_in_scroll_area(),"Cartesian (Z, Y, X)")
         self.scope_tabs.addTab(self.metrics_table,   "Metrics")
 
         v_splitter.addWidget(self.scope_tabs)
@@ -319,8 +319,8 @@ class SimulinkGUI(QMainWindow):
             f"J2={m['overshoot_j2_pct']:.1f}%"
         )
 
-        # Switch to first output tab
-        self.scope_tabs.setCurrentWidget(self.canvas_output)
+        # Switch to first output tab (index 1 = "Basic System Output")
+        self.scope_tabs.setCurrentIndex(1)
 
     def _on_gain_error(self, msg):
         """If gain variation fails, still enable controls."""

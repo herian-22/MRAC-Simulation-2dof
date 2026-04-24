@@ -4,7 +4,8 @@ scope.py — Matplotlib scope canvases for simulation results.
 Dark-themed matplotlib FigureCanvas widgets for embedding in PySide6.
 """
 
-from PySide6.QtWidgets import QSizePolicy
+from PySide6.QtWidgets import QSizePolicy, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib
@@ -23,6 +24,8 @@ class ScopePlotCanvas(FigureCanvas):
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
+        # Ensure the canvas never shrinks below a readable minimum
+        self.setMinimumHeight(500)
 
     def clear(self):
         self.fig.clear()
@@ -38,3 +41,57 @@ class ScopePlotCanvas(FigureCanvas):
         for spine in ax.spines.values():
             spine.set_color(Theme.BORDER)
         ax.grid(True, color=Theme.MPL_GRID, alpha=0.6, linewidth=0.5)
+
+    def wrap_in_scroll_area(self):
+        """Wrap this canvas in a QScrollArea for scrollable graph viewing.
+        
+        Returns:
+            QScrollArea: A scroll area containing this canvas.
+        """
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setWidget(self)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                background-color: {Theme.MPL_BG};
+            }}
+            QScrollBar:vertical {{
+                background-color: {Theme.BG_MID};
+                width: 10px;
+                border-radius: 5px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {Theme.BORDER};
+                border-radius: 4px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {Theme.TEXT_MUTED};
+            }}
+            QScrollBar:horizontal {{
+                background-color: {Theme.BG_MID};
+                height: 10px;
+                border-radius: 5px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: {Theme.BORDER};
+                border-radius: 4px;
+                min-width: 30px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: {Theme.TEXT_MUTED};
+            }}
+            QScrollBar::add-line, QScrollBar::sub-line {{
+                height: 0px;
+                width: 0px;
+            }}
+            QScrollBar::add-page, QScrollBar::sub-page {{
+                background: none;
+            }}
+        """)
+        return scroll
