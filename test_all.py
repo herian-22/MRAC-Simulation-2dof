@@ -52,17 +52,18 @@ def test_config():
     def test_physical_params():
         from models.config import PhysicalParams
         p = PhysicalParams()
-        assert p.m1 == 8.0, f"m1 should be 8.0, got {p.m1}"
-        assert p.m2 == 12.0, f"m2 should be 12.0, got {p.m2}"
+        assert p.m1 == 29.16, f"m1 should be 29.16, got {p.m1}"
+        assert p.m2 == 97.39, f"m2 should be 97.39, got {p.m2}"
         assert p.g == 9.81
-        assert p.l1 == 0.40
-        assert p.l2 == 0.80
+        assert p.a1 == 0.19
+        assert p.a2 == 0.97
+        assert p.d1 == 1.60
 
     def test_controller_params():
         from models.config import ControllerParams
         c = ControllerParams()
-        assert c.gamma1 == 770.0
-        assert c.gamma2 == 935.0
+        assert c.gamma1 == 750.0
+        assert c.gamma2 == 900.0
         assert c.Kp1 == 100.0
         assert c.theta_max == 50.0
 
@@ -81,13 +82,13 @@ def test_config():
         assert cfg.label == "default"
         assert cfg.simulation.trajectory_type == 'step'
         s = cfg.summary_str()
-        assert 'g1=770' in s
+        assert 'g1=750' in s
         assert 'step' in s
 
     def test_sweep_gamma():
         from models.config import sweep_gamma
-        configs = sweep_gamma(n_steps=3)
-        assert len(configs) == 9  # 3 x 3
+        configs = sweep_gamma(n_steps=5)
+        assert len(configs) == 25  # 5 x 5 (default values)
         for c in configs:
             assert 'gamma' in c.label
 
@@ -144,7 +145,9 @@ def test_dynamics():
         q = np.array([0.0, 0.0])
         G = dyn.gravity_vector(q)
         assert G.shape == (2,)
-        assert G[0] != 0, "G[0] should be nonzero at q=[0,0]"
+        # G[0] is zero for azimuth (no gravity effect on horizontal rotation)
+        assert G[0] == 0, "G[0] should be zero (azimuth has no gravity component)"
+        assert G[1] != 0, "G[1] should be nonzero (elevation has gravity)"
 
     def test_forward_dynamics():
         from models.dynamics import Dynamics2DoF
@@ -320,9 +323,8 @@ def test_controller():
         ref1 = ReferenceModel(ReferenceModelParams())
         ref2 = ReferenceModel(ReferenceModelParams())
         mrac = MRACController(dyn, ControllerParams(), ref1, ref2)
-        # Initially theta=0, so adaptive signal should be 0
-        u = mrac.adaptive_signal(np.zeros(2), np.zeros(2), np.array([0.5, 0.3]))
-        assert np.allclose(u, 0), "Initial adaptive signal should be zero"
+        # Initially alpha=0, so adaptive torque (alpha * dq) should be 0
+        assert np.allclose(mrac.alpha, 0), "Initial adaptive params should be zero"
 
     def test_mit_rule_update():
         from models.dynamics import Dynamics2DoF
@@ -334,14 +336,11 @@ def test_controller():
         ref2 = ReferenceModel(ReferenceModelParams())
         mrac = MRACController(dyn, ControllerParams(), ref1, ref2)
         e = np.array([0.1, 0.05])
-        q = np.array([0.3, 0.2])
-        dq = np.array([0.05, 0.02])
-        r = np.array([0.5, 0.3])
-        xm = np.array([[0.25, 0.01], [0.18, 0.01]])
-        dtheta = mrac.adaptation_law(e, q, dq, r, xm)
-        assert dtheta.shape == (6,)
-        # dtheta should be nonzero when error is nonzero
-        assert np.any(dtheta != 0), "Adaptation should produce nonzero updates"
+        dphi = np.array([0.05, 0.02])
+        dalpha = mrac.adaptation_law(e, dphi)
+        assert dalpha.shape == (2,)
+        # dalpha should be nonzero when error and dphi are nonzero
+        assert np.any(dalpha != 0), "Adaptation should produce nonzero updates"
 
     def test_full_torque():
         from models.dynamics import Dynamics2DoF
@@ -353,7 +352,7 @@ def test_controller():
         mrac = MRACController(dyn, ControllerParams(), ref1, ref2)
         q = np.zeros(2); dq = np.zeros(2)
         r = np.array([0.5, 0.3])
-        tau = mrac.compute_full_torque(q, dq, r, np.zeros(2), np.zeros(2), r)
+        tau = mrac.compute_full_torque(q, dq, r, np.zeros(2), np.zeros(2))
         assert tau.shape == (2,)
 
     test("Computed torque produces nonzero output", test_computed_torque)
@@ -384,7 +383,7 @@ def test_simulation():
         assert result.q_ref.shape == (N, 2)
         assert result.error.shape == (N, 2)
         assert result.tau.shape == (N, 2)
-        assert result.theta_adapt.shape == (N, 6)
+        assert result.alpha_adapt.shape == (N, 2)
         assert result.end_effector.shape == (N, 3)
 
         # Check metrics exist
