@@ -15,7 +15,7 @@ import subprocess
 import shutil
 
 APP_NAME = "MRAC Simulink"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_PUBLISHER = "Herian Perdana"
 APP_EXE = "MRAC_Simulink.exe"
 APP_ID = "{{B7E8F3A2-4D6C-4F8A-9B2E-1A3C5D7E9F0B}"
